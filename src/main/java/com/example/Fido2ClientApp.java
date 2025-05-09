@@ -20,6 +20,32 @@ import org.slf4j.LoggerFactory;
  */
 @Command(name = "fido2-client", mixinStandardHelpOptions = true, version = "FIDO2 Client Sim 1.0",
         description = "Simulates FIDO2 client operations (create/get).")
+/**
+ * Main entry point for the FIDO2 Client Simulator application.
+ * <p>
+ * This class provides a command-line interface for simulating FIDO2 registration and authentication flows.
+ * It manages the creation and retrieval of credentials, handles user and RP information, and provides
+ * clear error messages for a better user experience. Stack traces are logged at debug level, but not displayed
+ * to the user, ensuring a clean and professional output.
+ * </p>
+ *
+ * Usage examples:
+ * <pre>
+ *   java -jar fido2-client-simulator.jar create -f create_options.json
+ *   java -jar fido2-client-simulator.jar get -f get_options.json
+ * </pre>
+ *
+ * Dependencies:
+ * <ul>
+ *   <li>Jackson (JSON/CBOR parsing)</li>
+ *   <li>BouncyCastle (crypto)</li>
+ *   <li>Yubico WebAuthn libraries</li>
+ *   <li>Picocli (CLI parser)</li>
+ * </ul>
+ *
+ * @author jpmo
+ * @since 2025-05-09
+ */
 public class Fido2ClientApp implements Callable<Integer> {
     private static final Logger logger = LoggerFactory.getLogger(Fido2ClientApp.class);
 
@@ -50,6 +76,16 @@ public class Fido2ClientApp implements Callable<Integer> {
         this.getHandler = new GetHandler(keyStoreManager, jsonMapper, interactive);
     }
 
+    /**
+     * Main execution method for the CLI application.
+     * <p>
+     * Handles the requested FIDO2 operation (create/get) and manages errors.
+     * If an error occurs, only a concise message is shown to the user, while the full stack trace
+     * is logged at debug level for developers. This ensures a clean user experience and easier debugging.
+     * </p>
+     *
+     * @return exit code (0 for success, 1 for error)
+     */
     @Override
     public Integer call() throws Exception {
         String inputJson;
@@ -92,8 +128,10 @@ public class Fido2ClientApp implements Callable<Integer> {
                 return 1;
             }
         } catch (Exception e) {
+            // Mostrar solo el mensaje de error, sin stack trace
             System.err.println("Error during operation '" + operation + "': " + e.getMessage());
-            e.printStackTrace(System.err);
+            // Registrar el stack trace en el log para depuración, pero no mostrarlo al usuario
+            logger.debug("Stack trace:", e);
             return 1;
         }
         return 0;

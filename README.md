@@ -2,6 +2,8 @@
 
 A Java command-line application that simulates a FIDO2 authenticator for registration (`create`) and authentication (`get`) flows, with enhanced debugging and interoperability features.
 
+**Author:** Jordi Murgo (jordi.murgo@gmail.com)
+
 ## Features
 - Simulates `navigator.credentials.create()` and `navigator.credentials.get()`
 - Input: JSON for `PublicKeyCredentialCreationOptions` (create) or `PublicKeyCredentialRequestOptions` (get)
@@ -206,4 +208,4 @@ This detailed decoding helps with:
 
 ---
 
-© 2025 FIDO2 Client Simulator. MIT License.
+© 2025 Jordi Murgo (jordi.murgo@gmail.com). FIDO2 Client Simulator. MIT License.

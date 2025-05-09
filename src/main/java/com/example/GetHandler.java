@@ -87,10 +87,27 @@ public class GetHandler {
             }
         } else {
             credentialId = allowCredentials.get(0).getId();
+            // Verificar si la credencial existe en el keystore
+            if (!keyStoreManager.hasCredential(credentialId)) {
+                throw new IllegalArgumentException("Credential ID not found: " + credentialId.getBase64Url() + ". The credential may have been deleted or never existed.");
+            }
         }
 
+        // Verificar nuevamente que la credencial existe
+        if (!keyStoreManager.hasCredential(credentialId)) {
+            throw new IllegalArgumentException("Credential ID not found: " + credentialId.getBase64Url() + ". The credential may have been deleted or never existed.");
+        }
+        
         PublicKey publicKey = keyStoreManager.getPublicKey(credentialId);
+        if (publicKey == null) {
+            throw new IllegalArgumentException("Public key not found for credential ID: " + credentialId.getBase64Url());
+        }
+        
         PrivateKey privateKey = keyStoreManager.getPrivateKey(credentialId);
+        if (privateKey == null) {
+            throw new IllegalArgumentException("Private key not found for credential ID: " + credentialId.getBase64Url());
+        }
+        
         ByteArray userHandle = keyStoreManager.getUserHandleForCredential(credentialId);
         long signCount = keyStoreManager.getSignCount(credentialId);
 

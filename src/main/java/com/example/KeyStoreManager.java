@@ -187,6 +187,20 @@ public class KeyStoreManager {
     }
 
     /**
+     * Checks if a credential exists in the keystore.
+     * @param credentialId the credential ID to check
+     * @return true if the credential exists, false otherwise
+     */
+    public boolean hasCredential(ByteArray credentialId) {
+        try {
+            String alias = credentialId.getBase64Url();
+            return keyStore.containsAlias(alias) && metadataMap.containsKey(alias);
+        } catch (KeyStoreException e) {
+            return false;
+        }
+    }
+    
+    /**
      * Retrieves the public key for a given credential ID.
      * @param credentialId the credential ID
      * @return the PublicKey, or null if not found
