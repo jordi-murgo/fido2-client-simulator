@@ -137,6 +137,7 @@ java -jar target/fido2-client-simulator-1.0-SNAPSHOT.jar get '{
 cat get_options.json | java -jar target/fido2-client-simulator-1.0-SNAPSHOT.jar get
 ```
 # or
+```bash
 java -jar target/fido2-client-simulator-1.0-SNAPSHOT.jar get
 # (paste JSON, then Ctrl+D)
 ```
