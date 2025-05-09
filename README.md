@@ -143,22 +143,97 @@ java -jar target/fido2-client-simulator-1.0-SNAPSHOT.jar get
 
 ---
 
-### Credential Selection Behavior (`get`)
+### Arguments Supported by `get` (Authentication)
 
-If the input JSON for authentication does **not** include `allowCredentials`, the simulator will:
+The `get` command simulates the FIDO2 authentication (assertion) process and supports the following input arguments (as JSON):
+
+- `challenge` (required): Random challenge from the server.
+- `rpId` (required): Relying Party identifier (e.g., `localhost`).
+- `allowCredentials` (optional): List of credential descriptors to allow. If omitted, all credentials for the given `rpId` are considered.
+- `userVerification` (optional): Can be `required`, `preferred`, or `discouraged`.
+- `timeout` (optional): Timeout in milliseconds.
+- `extensions` (optional): Extensions for additional features (e.g., `{ "uvm": true }`).
+
+#### Credential Selection Logic (when `allowCredentials` is not provided)
+
+When the input JSON for authentication **does not** include `allowCredentials`, the simulator will:
 
 - **Search for all credentials stored for the given `rpId`.**
-- If only one exists, it is used automatically.
-- If multiple exist:
-  - By default (non-interactive), the first credential is used and a warning is printed.
-  - If you add `--interactive`, the CLI will prompt you to select which credential to use.
+    - If only one credential exists, it is used automatically.
+    - If multiple credentials exist:
+        - By default (non-interactive), the first credential is used automatically and a warning is printed to notify the user.
+        - If you add `--interactive`, the CLI will prompt you to select which credential to use among those available for the specified `rpId`.
 
-**Example with interactive selection:**
-```bash
-java -jar target/fido2-client-simulator-1.0-SNAPSHOT.jar get --file get_options.json --interactive
+This behavior matches modern authenticator implementations and enables both automated and manual testing workflows.
+
+#### Example: Authentication without `allowCredentials`
+
+Suppose you have the following input file (`get_options_notcredentials.json`):
+
+```json
+{
+  "challenge": "BBBBBBBBBBBBBBBBBBBBBB",
+  "rpId": "localhost",
+  "userVerification": "required",
+  "timeout": 60000,
+  "extensions": {
+    "uvm": true
+  }
+}
 ```
 
-This matches the behavior of modern authenticators and allows for both scripting and manual workflows.
+You can run the authentication as follows:
+
+```bash
+java -jar target/fido2-client-simulator-1.0-SNAPSHOT.jar get --file get_options_notcredentials.json
+```
+
+- If only one credential exists for `localhost`, it will be used.
+- If multiple credentials exist for `localhost`, the first will be chosen by default, or you can use `--interactive` to select one:
+
+```bash
+java -jar target/fido2-client-simulator-1.0-SNAPSHOT.jar get --file get_options_notcredentials.json --interactive
+```
+
+#### Enhanced Interactive Credential Selection
+
+When using the `--interactive` flag, the simulator displays a formatted table showing available credentials with user information:
+
+```
+[INFO] Multiple credentials found for rpId 'localhost':
+--------------------------------------------------------------
+  IDX | CREDENTIAL ID                  | USER INFO
+--------------------------------------------------------------
+  [0] | 50vs7QTXQjWwPKmtRvdUqA         | testuser (Test User)
+  [1] | nEb4vWGvTBeRCuwic_BtcA         | testuser (Test User)
+  [2] | T4qVPp9NQN6iVX5cCZRgtg         | testuser (Test User)
+--------------------------------------------------------------
+Select credential index: 2
+[INFO] Selected credential: T4qVPp9NQN6iVX5cCZRgtg
+```
+
+This enhanced display:
+- Shows each credential ID in a readable format (truncated if too long)
+- Displays the user name and display name associated with each credential
+- Makes it easy to identify the correct credential when multiple are available
+- Especially useful in multi-user environments where different users have registered credentials on the same device
+
+You can select the desired credential by entering its index number.
+
+#### Summary Table: Credential Selection
+
+| Scenario                              | Behavior                                                  |
+|---------------------------------------|-----------------------------------------------------------|
+| `allowCredentials` present            | Only listed credentials are eligible for assertion        |
+| `allowCredentials` missing, 1 present | That credential is used automatically                     |
+| `allowCredentials` missing, >1 present| First credential used (default), or prompt with `--interactive` |
+
+#### Notes
+- The simulator always filters credentials by the provided `rpId`.
+- The selection logic is designed for both scripting (automatic) and manual (interactive) use cases.
+- For advanced debugging, enable verbose logging or inspect the metadata output for credential details.
+
+**This flexible behavior ensures the simulator is realistic and suitable for both automated CI and manual QA workflows.**
 
 ## Files
 - `fido2_keystore.p12`: Stores credential private keys in PKCS12 format

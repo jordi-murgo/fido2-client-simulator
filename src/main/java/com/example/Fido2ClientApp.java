@@ -49,10 +49,10 @@ import org.slf4j.LoggerFactory;
 public class Fido2ClientApp implements Callable<Integer> {
     private static final Logger logger = LoggerFactory.getLogger(Fido2ClientApp.class);
 
-    private final KeyStoreManager keyStoreManager;
-    private final ObjectMapper jsonMapper;
-    private final CreateHandler createHandler;
-    private final GetHandler getHandler;
+    private KeyStoreManager keyStoreManager;
+    private ObjectMapper jsonMapper;
+    private CreateHandler createHandler;
+    // GetHandler es crearà al mètode call() quan es conegui el valor d'interactive
 
     @Option(names = {"-f", "--file"}, description = "Path to the JSON input file containing options.")
     File inputFile;
@@ -70,10 +70,10 @@ public class Fido2ClientApp implements Callable<Integer> {
      * Constructs the CLI app and initializes handlers and JSON codecs.
      */
     public Fido2ClientApp() {
+        // Inicialitzar només el necessari, GetHandler es crearà quan es conegui el valor d'interactive
         this.keyStoreManager = new KeyStoreManager();
         this.jsonMapper = new ObjectMapper().registerModule(new Jdk8Module());
         this.createHandler = new CreateHandler(keyStoreManager, jsonMapper);
-        this.getHandler = new GetHandler(keyStoreManager, jsonMapper, interactive);
     }
 
     /**
@@ -120,6 +120,12 @@ public class Fido2ClientApp implements Callable<Integer> {
                 logger.info("Create operation successful. Response:");
                 System.out.println(outputJson);
             } else if ("get".equalsIgnoreCase(operation)) {
+                // Crear GetHandler aquí, després que Picocli hagi processat el flag --interactive
+                GetHandler getHandler = new GetHandler(keyStoreManager, jsonMapper, interactive);
+                // Mostrar informació sobre el mode interactiu per a depuració
+                if (interactive) {
+                    logger.debug("Running in interactive mode");
+                }
                 outputJson = getHandler.handleGet(inputJson);
                 logger.info("Get operation successful. Response:");
                 System.out.println(outputJson);

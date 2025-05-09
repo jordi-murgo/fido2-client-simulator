@@ -225,6 +225,36 @@ public class KeyStoreManager {
         }
         return null;
     }
+    
+    /**
+     * Retrieves user information (name, displayName) for a credential.
+     * @param credentialId the credential ID
+     * @return a Map containing user information, or null if not found
+     */
+    public Map<String, String> getUserInfoForCredential(ByteArray credentialId) {
+        String alias = credentialId.getBase64Url();
+        CredentialMetadata meta = metadataMap.get(alias);
+        if (meta != null && meta.user != null) {
+            Map<String, String> userInfo = new HashMap<>();
+            
+            // Extract user name
+            if (meta.user.get("name") != null) {
+                userInfo.put("name", meta.user.get("name").toString());
+            } else {
+                userInfo.put("name", "<unknown>");
+            }
+            
+            // Extract display name
+            if (meta.user.get("displayName") != null) {
+                userInfo.put("displayName", meta.user.get("displayName").toString());
+            } else {
+                userInfo.put("displayName", "<unknown>");
+            }
+            
+            return userInfo;
+        }
+        return null;
+    }
 
     /**
      * Gets the current signature counter for a credential.

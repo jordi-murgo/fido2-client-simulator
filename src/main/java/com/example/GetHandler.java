@@ -59,30 +59,92 @@ public class GetHandler {
                 credentialId = creds.get(0);
                 System.out.println("[INFO] Only one credential found for rpId '" + options.getRpId() + "'. Using: " + credentialId.getBase64Url());
             } else {
+                // Si el flag interactive està activat, sempre intentem fer el prompt
                 if (interactive) {
+                    // Mode interactiu: mostrar opcions i demanar selecció
                     System.out.println("[INFO] Multiple credentials found for rpId '" + options.getRpId() + "':");
+                    System.out.println("--------------------------------------------------------------");
+                    System.out.println("  IDX | CREDENTIAL ID                  | USER INFO");
+                    System.out.println("--------------------------------------------------------------");
                     for (int i = 0; i < creds.size(); i++) {
-                        System.out.println("  [" + i + "] " + creds.get(i).getBase64Url());
+                        ByteArray credId = creds.get(i);
+                        // Obtenir la informació d'usuari per a aquesta credencial
+                        java.util.Map<String, String> userInfo = keyStoreManager.getUserInfoForCredential(credId);
+                        String userName = "<unknown>";
+                        String displayName = "<unknown>";
+                        
+                        if (userInfo != null) {
+                            userName = userInfo.get("name");
+                            displayName = userInfo.get("displayName");
+                        }
+                        
+                        // Formatar la sortida amb alineació de columnes
+                        String credIdShort = credId.getBase64Url();
+                        if (credIdShort.length() > 30) {
+                            credIdShort = credIdShort.substring(0, 27) + "...";
+                        }
+                        
+                        System.out.printf("  [%d] | %-30s | %s (%s)%n", 
+                                i, credIdShort, userName, displayName);
                     }
-                    System.out.print("Select credential index: ");
+                    System.out.println("--------------------------------------------------------------");
+                    
                     int idx = -1;
-                    try (java.util.Scanner scanner = new java.util.Scanner(System.in)) {
+                    System.out.print("Select credential index: ");
+                    System.out.flush(); // Assegurar que el prompt es mostra
+                    
+                    // Utilitzem Console si està disponible (millor per a passwords i interacció)
+                    // o Scanner com a fallback
+                    if (System.console() != null) {
                         while (idx < 0 || idx >= creds.size()) {
-                            String input = scanner.nextLine();
+                            String input = System.console().readLine();
                             try {
                                 idx = Integer.parseInt(input);
                                 if (idx < 0 || idx >= creds.size()) {
                                     System.out.print("Invalid index. Try again: ");
+                                    System.out.flush();
                                 }
                             } catch (NumberFormatException e) {
                                 System.out.print("Invalid input. Enter a number: ");
+                                System.out.flush();
+                            }
+                        }
+                    } else {
+                        // Fallback a Scanner si Console no està disponible
+                        try (java.util.Scanner scanner = new java.util.Scanner(System.in)) {
+                            while (idx < 0 || idx >= creds.size()) {
+                                if (scanner.hasNextLine()) {
+                                    String input = scanner.nextLine();
+                                    try {
+                                        idx = Integer.parseInt(input);
+                                        if (idx < 0 || idx >= creds.size()) {
+                                            System.out.print("Invalid index. Try again: ");
+                                            System.out.flush();
+                                        }
+                                    } catch (NumberFormatException e) {
+                                        System.out.print("Invalid input. Enter a number: ");
+                                        System.out.flush();
+                                    }
+                                } else {
+                                    // Si no hi ha més input disponible, sortim del bucle i usem el primer
+                                    System.out.println("\n[WARN] No input available. Using the first credential.");
+                                    idx = 0;
+                                    break;
+                                }
                             }
                         }
                     }
+                    
                     credentialId = creds.get(idx);
+                    System.out.println("[INFO] Selected credential: " + credentialId.getBase64Url());
                 } else {
+                    // Mode no interactiu o no es pot fer prompt: usar el primer i mostrar advertència
                     credentialId = creds.get(0);
-                    System.out.println("[WARN] Multiple credentials found for rpId '" + options.getRpId() + "'. Using the first: " + credentialId.getBase64Url() + ". Use --interactive for manual selection.");
+                    if (interactive) {
+                        System.out.println("[WARN] Multiple credentials found for rpId '" + options.getRpId() + "'. Using the first: " + credentialId.getBase64Url() + ". (--interactive flag detected but input is not from a terminal)");
+                    } else {
+                        System.out.println("[WARN] Multiple credentials found for rpId '" + options.getRpId() + "'. Using the first: " + credentialId.getBase64Url() + ". Use --interactive for manual selection.");
+                    }
                 }
             }
         } else {
@@ -190,4 +252,6 @@ public class GetHandler {
         }
         throw new IllegalArgumentException("Unsupported COSE algorithm for JCA signature: " + coseAlg);
     }
+    
+    // S'ha eliminat el mètode isInputAvailable() ja que no s'utilitza
 }
