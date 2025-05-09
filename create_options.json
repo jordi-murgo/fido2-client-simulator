@@ -1,0 +1,22 @@
+{
+  "rp": {
+    "name": "My Test RP",
+    "id": "localhost"
+  },
+  "user": {
+    "name": "testuser",
+    "displayName": "Test User",
+    "id": "dGVzdHVzZXJfaWQ="
+  },
+  "challenge": "AAAAAAAAAAAAAAAAAAAAAA",
+  "pubKeyCredParams": [
+    { "type": "public-key", "alg": -7 },
+    { "type": "public-key", "alg": -257 }
+  ],
+  "authenticatorSelection": {
+    "userVerification": "required",
+    "requireResidentKey": false,
+    "authenticatorAttachment": "platform"
+  },
+  "attestation": "direct"
+}

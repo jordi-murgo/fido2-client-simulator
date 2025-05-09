@@ -1,0 +1,12 @@
+{
+  "challenge": "BBBBBBBBBBBBBBBBBBBBBB",
+  "rpId": "localhost",
+  "allowCredentials": [
+    {
+      "type": "public-key",
+      "id": "6T9pAhKGT7qZHQauKklhig"
+    }
+  ],
+  "userVerification": "discouraged",
+  "extensions": {}
+}

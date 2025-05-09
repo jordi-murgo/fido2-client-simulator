@@ -1,0 +1,17 @@
+{
+  "50vs7QTXQjWwPKmtRvdUqA" : {
+    "credentialId" : "50vs7QTXQjWwPKmtRvdUqA",
+    "registrationResponseJson" : "{\n  \"id\" : \"50vs7QTXQjWwPKmtRvdUqA\",\n  \"response\" : {\n    \"attestationObject\" : \"o2NmbXRkbm9uZWdhdHRTdG10oGhhdXRoRGF0YViUSZYN5YgOjGh0NBcPZHZgW4_krrmihjLHmVzzuoMdl2NFAAAAAAAAAAAAAAAAAAAAAAAAAAAAEOdL7O0E10I1sDyprUb3VKilAQIDJiABIVggH2i-Z6RcHsFlzzJK77cycuLlSjuZPKNMGGZQVR7Owo4iWCCpOjjGlAlmp4hYalP9xYCVWKHSJnpAKNisO3-jmACVJw\",\n    \"clientDataJSON\" : \"eyJ0eXBlIjoid2ViYXV0aG4uY3JlYXRlIiwiY2hhbGxlbmdlIjoiQUFBQUFBQUFBQUFBQUFBQUFBQUFBQSIsIm9yaWdpbiI6Imh0dHBzOi8vbG9jYWxob3N0In0\",\n    \"transports\" : [ ]\n  },\n  \"authenticatorAttachment\" : null,\n  \"clientExtensionResults\" : {\n    \"appidExclude\" : null,\n    \"credProps\" : null,\n    \"largeBlob\" : null\n  },\n  \"type\" : \"public-key\"\n}",
+    "rp" : {
+      "name" : "My Test RP",
+      "id" : "localhost"
+    },
+    "user" : {
+      "name" : "testuser",
+      "displayName" : "Test User",
+      "id" : "dGVzdHVzZXJfaWQ"
+    },
+    "createdAt" : 1746798881525,
+    "publicKeyPem" : "-----BEGIN PUBLIC KEY-----\nMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEH2i+Z6RcHsFlzzJK77cycuLlSjuZ\nPKNMGGZQVR7Owo6pOjjGlAlmp4hYalP9xYCVWKHSJnpAKNisO3+jmACVJw==\n-----END PUBLIC KEY-----\n"
+  }
+}
