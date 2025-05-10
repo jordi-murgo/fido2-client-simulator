@@ -46,6 +46,9 @@ public class CreateHandler {
      * @throws Exception on error
      */
     public String handleCreate(String optionsJson) throws Exception {
+        // Attempt to decode Base64-encoded JSON (supports URL-safe and standard Base64)
+        optionsJson = Util.tryDecodeBase64Json(optionsJson);
+
         // Parse the options
         PublicKeyCredentialCreationOptions options = jsonMapper.readValue(optionsJson, PublicKeyCredentialCreationOptions.class);
 

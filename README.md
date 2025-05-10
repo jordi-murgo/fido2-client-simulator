@@ -60,6 +60,25 @@ You can provide input to the CLI in three ways:
    echo '{"challenge": "CCCC...", "rpId": "localhost", ...}' | java -jar target/fido2-client-simulator-1.0-SNAPSHOT.jar get
    ```
 
+### Base64-Encoded Input Support
+
+You can also provide the input JSON as Base64-encoded content. The application will automatically attempt to decode Base64 (both standard and URL-safe variants) before processing the JSON:
+
+```bash
+# Create a Base64-encoded version of your input file
+base64 -i create_options.json | java -jar target/fido2-client-simulator-1.0-SNAPSHOT.jar create
+```
+
+This is useful when:
+- Working with WebAuthn implementations that encode their options as Base64
+- Exchanging options between systems where Base64 encoding is preferred
+- Passing complex JSON through environments that might interfere with JSON formatting
+
+The application tries the following decodings in sequence:
+1. Base64 URL-safe decoding
+2. Standard Base64 decoding
+3. Fallback to using the input as-is (plain JSON)
+
 ---
 
 ### Registration (`create`)
@@ -167,7 +186,7 @@ When the input JSON for authentication **does not** include `allowCredentials`, 
 
 This behavior matches modern authenticator implementations and enables both automated and manual testing workflows.
 
-#### Example: Authentication without `allowCredentials`
+#### Example: Authentication without `allowCredentials` array
 
 Suppose you have the following input file (`get_options_notcredentials.json`):
 

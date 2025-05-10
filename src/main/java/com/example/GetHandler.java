@@ -46,6 +46,9 @@ public class GetHandler {
      * @throws Exception on error
      */
     public String handleGet(String optionsJson) throws Exception {
+        // Attempt to decode Base64-encoded JSON (supports URL-safe and standard Base64)
+        optionsJson = Util.tryDecodeBase64Json(optionsJson);
+
         PublicKeyCredentialRequestOptions options = jsonMapper.readValue(optionsJson, PublicKeyCredentialRequestOptions.class);
         List<PublicKeyCredentialDescriptor> allowCredentials = options.getAllowCredentials().orElse(null);
         ByteArray credentialId = null;
