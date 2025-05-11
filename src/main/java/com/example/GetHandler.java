@@ -48,7 +48,24 @@ public class GetHandler {
     public String handleGet(String optionsJson) throws Exception {
         // Attempt to decode Base64-encoded JSON (supports URL-safe and standard Base64)
         optionsJson = Util.tryDecodeBase64Json(optionsJson);
-
+        
+        // Processar el JSON com a objecte en lloc de string per major robustesa
+        try {
+            // Convertir string a JsonNode
+            com.fasterxml.jackson.databind.JsonNode jsonNode = jsonMapper.readTree(optionsJson);
+            
+            // Verificar si el node extensions existeix
+            if (!jsonNode.has("extensions")) {
+                // Afegir node extensions buit si no existeix
+                ((com.fasterxml.jackson.databind.node.ObjectNode) jsonNode).putObject("extensions");
+                // Convertir de nou a string
+                optionsJson = jsonMapper.writeValueAsString(jsonNode);
+            }
+        } catch (Exception e) {
+            System.out.println("[WARN] Error while preprocessing JSON: " + e.getMessage());
+            // Continuar amb el JSON original si hi ha un error en el preprocessament
+        }
+        
         PublicKeyCredentialRequestOptions options = jsonMapper.readValue(optionsJson, PublicKeyCredentialRequestOptions.class);
         List<PublicKeyCredentialDescriptor> allowCredentials = options.getAllowCredentials().orElse(null);
         ByteArray credentialId = null;
@@ -151,10 +168,27 @@ public class GetHandler {
                 }
             }
         } else {
-            credentialId = allowCredentials.get(0).getId();
-            // Verificar si la credencial existe en el keystore
-            if (!keyStoreManager.hasCredential(credentialId)) {
-                throw new IllegalArgumentException("Credential ID not found: " + credentialId.getBase64Url() + ". The credential may have been deleted or never existed.");
+            // Recorrer totes les credencials permeses en l'ordre especificat
+            boolean credentialFound = false;
+            
+            System.out.println("[INFO] Checking " + allowCredentials.size() + " credentials from allowCredentials list");
+            
+            for (int i = 0; i < allowCredentials.size(); i++) {
+                ByteArray candidateId = allowCredentials.get(i).getId();
+                System.out.println("[DEBUG] Checking credential #" + i + ": " + candidateId.getBase64Url());
+                
+                // Verificar si la credencial existeix al keystore
+                if (keyStoreManager.hasCredential(candidateId)) {
+                    credentialId = candidateId;
+                    System.out.println("[INFO] Using credential: " + credentialId.getBase64Url() + " (position " + i + " in allowCredentials list)");
+                    credentialFound = true;
+                    break;
+                }
+            }
+            
+            // Si cap credencial de la llista es troba al keystore
+            if (!credentialFound) {
+                throw new IllegalArgumentException("None of the " + allowCredentials.size() + " credentials in allowCredentials list were found in the keystore. Make sure to register the credentials first.");
             }
         }
 

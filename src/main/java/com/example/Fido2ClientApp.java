@@ -1,6 +1,7 @@
 package com.example;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.datatype.jdk8.Jdk8Module;
 
 import picocli.CommandLine;
@@ -9,6 +10,7 @@ import picocli.CommandLine.Option;
 import picocli.CommandLine.Parameters;
 
 import java.io.File;
+import java.io.IOException;
 import java.nio.file.Files;
 import java.util.concurrent.Callable;
 import org.slf4j.Logger;
@@ -33,6 +35,8 @@ import org.slf4j.LoggerFactory;
  * <pre>
  *   java -jar fido2-client-simulator.jar create -f create_options.json
  *   java -jar fido2-client-simulator.jar get -f get_options.json
+ *   java -jar fido2-client-simulator.jar create -f create_options.json --json-only
+ *   java -jar fido2-client-simulator.jar get -f get_options.json --output result.json
  * </pre>
  *
  * Dependencies:
@@ -60,6 +64,18 @@ public class Fido2ClientApp implements Callable<Integer> {
     @Option(names = {"--interactive"}, description = "Prompt for credential selection if multiple exist (get only)")
     boolean interactive = false;
 
+    @Option(names = {"--json-only"}, description = "Output only the JSON response without any log messages")
+    boolean jsonOnly = false;
+    
+    @Option(names = {"-o", "--output"}, description = "Path to save the JSON output to a file")
+    File outputFile;
+    
+    @Option(names = {"--pretty"}, description = "Format the JSON output with indentation for better readability")
+    boolean prettyPrint = false;
+    
+    @Option(names = {"--verbose"}, description = "Enable verbose output with detailed logging")
+    boolean verbose = false;
+
     @Parameters(index = "0", description = "The operation to perform: 'create' or 'get'.")
     private String operation;
 
@@ -72,7 +88,9 @@ public class Fido2ClientApp implements Callable<Integer> {
     public Fido2ClientApp() {
         // Inicialitzar només el necessari, GetHandler es crearà quan es conegui el valor d'interactive
         this.keyStoreManager = new KeyStoreManager();
-        this.jsonMapper = new ObjectMapper().registerModule(new Jdk8Module());
+        this.jsonMapper = new ObjectMapper()
+                .registerModule(new Jdk8Module())
+                .configure(SerializationFeature.INDENT_OUTPUT, true); // Enable pretty printing by default
         this.createHandler = new CreateHandler(keyStoreManager, jsonMapper);
     }
 
@@ -86,69 +104,186 @@ public class Fido2ClientApp implements Callable<Integer> {
      *
      * @return exit code (0 for success, 1 for error)
      */
+    /**
+     * Process the input JSON and execute the requested FIDO2 operation.
+     * 
+     * @return Exit code (0 for success, 1 for error)
+     * @throws Exception If an error occurs during processing
+     */
     @Override
     public Integer call() throws Exception {
-        String inputJson;
-        if (inputFile != null) {
-            if (!inputFile.exists()) {
-                System.err.println("Input file not found: " + inputFile.getAbsolutePath());
-                return 1;
-            }
-            inputJson = new String(Files.readAllBytes(inputFile.toPath()));
-        } else if (jsonInputString != null && !jsonInputString.isEmpty()) {
-            inputJson = jsonInputString;
-        } else {
-            // Read from stdin if neither --file nor JSON string is provided
-            System.out.println("Reading JSON input from stdin. Press Ctrl+D (Unix) or Ctrl+Z (Windows) to finish:");
-            StringBuilder sb = new StringBuilder();
-            try (java.util.Scanner scanner = new java.util.Scanner(System.in)) {
-                while (scanner.hasNextLine()) {
-                    sb.append(scanner.nextLine()).append("\n");
-                }
-            }
-            inputJson = sb.toString().trim();
-            if (inputJson.isEmpty()) {
-                System.err.println("No input provided via stdin.");
-                return 1;
-            }
+        // Configure logging verbosity
+        if (verbose && !jsonOnly) {
+            // Enable more detailed logging when verbose mode is active
+            System.setProperty("org.slf4j.simpleLogger.defaultLogLevel", "DEBUG");
+        } else if (jsonOnly) {
+            // Disable all logging in JSON-only mode
+            System.setProperty("org.slf4j.simpleLogger.defaultLogLevel", "OFF");
         }
-
+        
+        // Read input JSON from file, command line, or stdin
+        String inputJson = readInputJson();
+        if (inputJson == null) {
+            return 1; // Error already reported
+        }
+        
         try {
-            String outputJson;
-            if ("create".equalsIgnoreCase(operation)) {
-                outputJson = createHandler.handleCreate(inputJson);
-                logger.info("Create operation successful. Response:");
-                System.out.println(outputJson);
-            } else if ("get".equalsIgnoreCase(operation)) {
-                // Crear GetHandler aquí, després que Picocli hagi processat el flag --interactive
-                GetHandler getHandler = new GetHandler(keyStoreManager, jsonMapper, interactive);
-                // Mostrar informació sobre el mode interactiu per a depuració
-                if (interactive) {
-                    logger.debug("Running in interactive mode");
-                }
-                outputJson = getHandler.handleGet(inputJson);
-                logger.info("Get operation successful. Response:");
-                System.out.println(outputJson);
-            } else {
-                System.err.println("Invalid operation: " + operation + ". Must be 'create' or 'get'.");
-                return 1;
+            // Process the operation and get the result
+            String outputJson = processOperation(inputJson);
+            if (outputJson == null) {
+                return 1; // Error already reported
             }
+            
+            // Format the output if needed
+            if (prettyPrint && !outputJson.trim().startsWith("{")) {
+                // Only try to pretty-print if it's not already formatted and looks like JSON
+                try {
+                    Object json = jsonMapper.readValue(outputJson, Object.class);
+                    outputJson = jsonMapper.writerWithDefaultPrettyPrinter().writeValueAsString(json);
+                } catch (Exception e) {
+                    // If pretty printing fails, just use the original output
+                    if (verbose && !jsonOnly) {
+                        logger.debug("Failed to pretty-print JSON output", e);
+                    }
+                }
+            }
+            
+            // Save to file if requested
+            if (outputFile != null) {
+                try {
+                    // Create parent directories if they don't exist
+                    if (outputFile.getParentFile() != null && !outputFile.getParentFile().exists()) {
+                        outputFile.getParentFile().mkdirs();
+                    }
+                    
+                    Files.write(outputFile.toPath(), outputJson.getBytes());
+                    if (!jsonOnly) {
+                        logger.info("Output saved to: " + outputFile.getAbsolutePath());
+                    }
+                } catch (IOException e) {
+                    reportError("Failed to write output to file: " + e.getMessage(), e);
+                    return 1;
+                }
+            }
+            
+            // Print to stdout unless output is only to file
+            if (outputFile == null || verbose) {
+                System.out.println(outputJson);
+            }
+            
+            return 0; // Success
         } catch (Exception e) {
-            // Mostrar solo el mensaje de error, sin stack trace
-            System.err.println("Error during operation '" + operation + "': " + e.getMessage());
-            // Registrar el stack trace en el log para depuración, pero no mostrarlo al usuario
-            logger.debug("Stack trace:", e);
+            reportError("Error during operation '" + operation + "': " + e.getMessage(), e);
             return 1;
         }
-        return 0;
+    }
+    
+    /**
+     * Read input JSON from file, command line argument, or stdin.
+     * 
+     * @return The input JSON string, or null if an error occurred
+     */
+    private String readInputJson() {
+        try {
+            if (inputFile != null) {
+                if (!inputFile.exists()) {
+                    reportError("Input file not found: " + inputFile.getAbsolutePath(), null);
+                    return null;
+                }
+                return new String(Files.readAllBytes(inputFile.toPath()));
+            } else if (jsonInputString != null && !jsonInputString.isEmpty()) {
+                return jsonInputString;
+            } else {
+                // Read from stdin if neither --file nor JSON string is provided
+                if (!jsonOnly) {
+                    System.out.println("Reading JSON input from stdin. Press Ctrl+D (Unix) or Ctrl+Z (Windows) to finish:");
+                }
+                StringBuilder sb = new StringBuilder();
+                try (java.util.Scanner scanner = new java.util.Scanner(System.in)) {
+                    while (scanner.hasNextLine()) {
+                        sb.append(scanner.nextLine()).append("\n");
+                    }
+                }
+                String input = sb.toString().trim();
+                if (input.isEmpty()) {
+                    reportError("No input provided via stdin.", null);
+                    return null;
+                }
+                return input;
+            }
+        } catch (Exception e) {
+            reportError("Error reading input: " + e.getMessage(), e);
+            return null;
+        }
+    }
+    
+    /**
+     * Process the operation (create or get) with the provided input JSON.
+     * 
+     * @param inputJson The input JSON string
+     * @return The output JSON string, or null if an error occurred
+     */
+    private String processOperation(String inputJson) {
+        try {
+            if ("create".equalsIgnoreCase(operation)) {
+                String result = createHandler.handleCreate(inputJson);
+                if (!jsonOnly && verbose) {
+                    logger.info("Create operation successful.");
+                }
+                return result;
+            } else if ("get".equalsIgnoreCase(operation)) {
+                // Create GetHandler here, after Picocli has processed the interactive flag
+                GetHandler getHandler = new GetHandler(keyStoreManager, jsonMapper, interactive);
+                if (interactive && verbose && !jsonOnly) {
+                    logger.debug("Running in interactive mode");
+                }
+                String result = getHandler.handleGet(inputJson);
+                if (!jsonOnly && verbose) {
+                    logger.info("Get operation successful.");
+                }
+                return result;
+            } else {
+                reportError("Invalid operation: " + operation + ". Must be 'create' or 'get'.", null);
+                return null;
+            }
+        } catch (Exception e) {
+            reportError("Error processing operation: " + e.getMessage(), e);
+            return null;
+        }
+    }
+    
+    /**
+     * Report an error in the appropriate format based on the current mode.
+     * 
+     * @param message The error message
+     * @param e The exception (may be null)
+     */
+    private void reportError(String message, Exception e) {
+        if (!jsonOnly) {
+            System.err.println("ERROR: " + message);
+            if (e != null && verbose) {
+                logger.debug("Stack trace:", e);
+            }
+        } else {
+            // In JSON-only mode, output a JSON error object
+            System.out.println("{\"error\":\"" + message.replace("\"", "\\\"") + "\"}");
+        }
     }
 
     /**
      * Main method. Runs the CLI app.
+     * 
      * @param args Command-line arguments
      */
     public static void main(String[] args) {
-        int exitCode = new CommandLine(new Fido2ClientApp()).execute(args);
+        // Configure the command line with better error handling and help formatting
+        CommandLine cmd = new CommandLine(new Fido2ClientApp())
+                .setUsageHelpAutoWidth(true)
+                .setCaseInsensitiveEnumValuesAllowed(true)
+                .setExpandAtFiles(true);
+        
+        // Execute the command and exit with the appropriate code
+        int exitCode = cmd.execute(args);
         System.exit(exitCode);
     }
 }

@@ -11,6 +11,10 @@ A Java command-line application that simulates a FIDO2 authenticator for registr
 - Enhanced metadata storage in JSON format with rich credential information
 - PEM-encoded public key storage for improved interoperability
 - Detailed attestation and authenticator data decoding for debugging
+- Save output directly to file with `--output` option
+- Pretty-print JSON output with `--pretty` option
+- Detailed logging with `--verbose` option
+- Clean JSON-only output with `--json-only` option for scripting
 - Key storage: Java KeyStore (PKCS12) for secure credential operations
 - Crypto: Uses BouncyCastle and Yubico's WebAuthn libraries
 - JSON: Uses Jackson with CBOR support
@@ -29,6 +33,22 @@ A Java command-line application that simulates a FIDO2 authenticator for registr
    This will produce a fat JAR at `target/fido2-client-simulator-1.0-SNAPSHOT.jar`.
 
 ## CLI Usage
+
+### Command-Line Options
+
+The FIDO2 Client Simulator supports the following command-line options:
+
+| Option | Description |
+|--------|-------------|
+| `--file`, `-f` | Specify an input file containing JSON options |
+| `--output`, `-o` | Save the output to a specified file |
+| `--pretty` | Format the JSON output with indentation for better readability |
+| `--verbose` | Enable detailed logging for debugging |
+| `--json-only` | Output only the JSON response (useful for scripting) |
+| `--interactive` | Enable interactive credential selection |
+| `--help` | Show help message |
+
+### Input Methods
 
 You can provide input to the CLI in three ways:
 
@@ -266,6 +286,90 @@ You can select the desired credential by entering its index number.
 
 ## Advanced Features
 
+### Output Formatting and Saving
+
+#### Pretty-Print JSON Output
+
+Use the `--pretty` option to format the JSON output with proper indentation for better readability:
+
+```bash
+java -jar target/fido2-client-simulator-1.0-SNAPSHOT.jar create --file create_options.json --pretty
+```
+
+This produces nicely formatted JSON that's easier to read and analyze:
+
+```json
+{
+  "id" : "afdwmPF5T7yBNPUd4DP1Ow",
+  "response" : {
+    "attestationObject" : "o2NmbXRkbm9uZWdhdHRTdG10oGhhdXRoRGF0YViUSZYN5YgOjGh0NBcPZHZgW4_krrmihjLHmVzzuoMdl2NBAAAAAAAAAAAAAAAAAAAAAAAAAAAAECC_99reuEKrrQajsYFOtsGlAQIDJiABIVggxzbUxC0ZA_vVO2kz0WqO9SnbbmEaqOvuoy14cyyL3HYiWCAUsdMw3-wlwJP7YoJPXFOoE0d6oGQa1OTHjBJgXiTODg",
+    "clientDataJSON" : "ewogICJ0eXBlIiA6ICJ3ZWJhdXRobi5jcmVhdGUiLAogICJjaGFsbGVuZ2UiIDogIlkyaGhiR3hsYm1kbCIsCiAgIm9yaWdpbiIgOiAiaHR0cHM6Ly9sb2NhbGhvc3QiCn0",
+    "transports" : [ ]
+  },
+  "authenticatorAttachment" : null,
+  "clientExtensionResults" : {
+    "appidExclude" : null,
+    "credProps" : null,
+    "largeBlob" : null
+  },
+  "type" : "public-key"
+}
+```
+
+#### Save Output to File
+
+Use the `--output` (or `-o`) option to save the JSON output directly to a file:
+
+```bash
+java -jar target/fido2-client-simulator-1.0-SNAPSHOT.jar create --file create_options.json --output result.json
+```
+
+This is particularly useful for:
+- Saving results for later analysis
+- Integrating with automated testing pipelines
+- Creating documentation examples
+
+You can combine this with `--pretty` for nicely formatted saved output:
+
+```bash
+java -jar target/fido2-client-simulator-1.0-SNAPSHOT.jar create --file create_options.json --pretty --output result.json
+```
+
+#### JSON-Only Mode for Scripting
+
+Use the `--json-only` option to output only the JSON response without any additional logging or information:
+
+```bash
+java -jar target/fido2-client-simulator-1.0-SNAPSHOT.jar create --file create_options.json --json-only
+```
+
+This is ideal for:
+- Scripting and automation
+- Piping output to other tools
+- CI/CD integration
+
+### Verbose Logging
+
+Enable detailed logging with the `--verbose` option to see more information about the credential creation or assertion process:
+
+```bash
+java -jar target/fido2-client-simulator-1.0-SNAPSHOT.jar get --file get_options.json --verbose
+```
+
+Verbose output includes:
+- Detailed information about credential selection
+- Debugging information for attestation and assertion
+- Step-by-step processing information
+- Error details when problems occur
+
+Example verbose output:
+```
+[INFO] Checking 1 credentials from allowCredentials list
+[DEBUG] Checking credential #0: U5HoKUR1ToCH1UeXiUXrKA
+[INFO] Using credential: U5HoKUR1ToCH1UeXiUXrKA (position 0 in allowCredentials list)
+...
+```
+
 ### PEM-Encoded Public Key Storage
 Each credential's public key is stored in standard PEM format (X.509 SubjectPublicKeyInfo) in the metadata, enabling:
 - Easy interoperability with other systems and languages
@@ -296,9 +400,28 @@ This detailed decoding helps with:
 - Understanding the internal structure of credentials
 - Verifying correct flag settings and credential data
 
+## Demo Script
+
+The project includes a demo script (`demo-fido2-client.sh`) that demonstrates the main features of the FIDO2 Client Simulator:
+
+```bash
+./demo-fido2-client.sh
+```
+
+The demo script:
+1. Creates sample registration options
+2. Uses the simulator to create a credential
+3. Creates sample authentication options
+4. Uses the simulator to generate an assertion
+5. Demonstrates all the new features (pretty printing, output to file, JSON-only mode, verbose logging)
+
+This is a great way to quickly see the simulator in action and understand how to use all its features.
+
 ## Notes
 - Change the keystore password in production!
 - The default AAGUID is all zeros (software authenticator)
+- For best results with scripting, use the `--json-only` option
+- When debugging, combine `--pretty` and `--verbose` options
 - See the code for more details and documentation
 
 ---
