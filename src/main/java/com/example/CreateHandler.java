@@ -1,24 +1,26 @@
 package com.example;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.yubico.webauthn.data.*;
-
-import com.yubico.webauthn.data.AuthenticatorData;
-import com.yubico.webauthn.data.ByteArray;
-import com.yubico.webauthn.data.COSEAlgorithmIdentifier;
-import com.yubico.webauthn.data.PublicKeyCredential;
-import com.yubico.webauthn.data.UserVerificationRequirement;
-
 import java.nio.ByteBuffer;
+import java.security.KeyPair;
+import java.security.KeyStoreException;
+import java.security.PublicKey;
+import java.security.Signature;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
-import java.security.*;
-import java.security.KeyStoreException;
-import com.example.UtilPem; // Utility for PEM encoding
-
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.yubico.webauthn.data.AuthenticatorAttestationResponse;
+import com.yubico.webauthn.data.AuthenticatorData;
+import com.yubico.webauthn.data.AuthenticatorSelectionCriteria;
+import com.yubico.webauthn.data.ByteArray;
+import com.yubico.webauthn.data.COSEAlgorithmIdentifier;
+import com.yubico.webauthn.data.ClientRegistrationExtensionOutputs;
+import com.yubico.webauthn.data.PublicKeyCredential;
+import com.yubico.webauthn.data.PublicKeyCredentialCreationOptions;
+import com.yubico.webauthn.data.PublicKeyCredentialParameters;
+import com.yubico.webauthn.data.UserVerificationRequirement;
 
 /**
  * Handles the FIDO2 registration (create) operation, simulating an authenticator's credential creation.
@@ -208,4 +210,3 @@ public class CreateHandler {
         return out;
     }
 }
-
