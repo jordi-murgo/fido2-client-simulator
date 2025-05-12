@@ -79,17 +79,11 @@ if [ -z "$ASSERTION_ID" ]; then
     exit 1
 fi
 
-AUTH_VERIFY_PAYLOAD=$(jq -n --arg id "$ASSERTION_ID" \
-    --argjson response "$(cat "$TEST_DIR/assertion_response.json")" \
+# El API requiere un json con el siguiente formato:
+AUTH_VERIFY_PAYLOAD=$(jq -n --argjson response "$(cat "$TEST_DIR/assertion_response.json")" \
     '{
         "username": "tutorial_user",
-        "response": {
-            "id": $id,
-            "rawId": $id,
-            "response": $response.response,
-            "type": "public-key",
-            "clientExtensionResults": {}
-        }
+        "response": $response
     }')
 
 echo "$AUTH_VERIFY_PAYLOAD" > "$TEST_DIR/auth_verify_request.json"

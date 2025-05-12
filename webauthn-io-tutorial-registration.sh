@@ -86,17 +86,11 @@ if [ -z "$CREDENTIAL_ID" ]; then
     exit 1
 fi
 
-REG_VERIFY_PAYLOAD=$(jq -n --arg id "$CREDENTIAL_ID" \
-    --argjson response "$(cat "$TEST_DIR/create_response.json")" \
+# El API requiere un json con el siguiente formato:
+REG_VERIFY_PAYLOAD=$(jq -n --argjson response "$(cat "$TEST_DIR/create_response.json")" \
     '{
         "username": "tutorial_user",
-        "response": {
-            "id": $id,
-            "rawId": $id,
-            "response": $response.response,
-            "type": "public-key",
-            "clientExtensionResults": {}
-        }
+        "response": $response
     }')
 
 echo "$REG_VERIFY_PAYLOAD" > "$TEST_DIR/reg_verify_request.json"

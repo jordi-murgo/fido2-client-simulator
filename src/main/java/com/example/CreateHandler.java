@@ -39,6 +39,7 @@ public class CreateHandler {
     public CreateHandler(KeyStoreManager keyStoreManager, ObjectMapper jsonMapper) {
         this.keyStoreManager = keyStoreManager;
         this.jsonMapper = jsonMapper;
+        this.jsonMapper.setSerializationInclusion(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL);
     }
 
     /**
@@ -122,6 +123,7 @@ public class CreateHandler {
 
         String registrationResponseJson = jsonMapper.writerWithDefaultPrettyPrinter().writeValueAsString(credential);
 
+        
         // Log attestationObject fields (fmt, authData, attStmt) in CLI
         try {
             // Parse the registration response JSON to extract attestationObject
@@ -175,6 +177,12 @@ public class CreateHandler {
             keyStoreManager.metadataMap.put(meta.credentialId, meta);
             keyStoreManager.saveMetadata();
         }
+
+        // Add rawId to the response
+        ObjectNode root = jsonMapper.readValue(registrationResponseJson, ObjectNode.class);
+        root.set("rawId", root.get("id"));
+        registrationResponseJson = jsonMapper.writeValueAsString(root);
+        
         return registrationResponseJson;
     }
 

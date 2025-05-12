@@ -1,19 +1,21 @@
 package com.example;
 
+import java.nio.ByteBuffer;
+import java.security.PrivateKey;
+import java.security.PublicKey;
+import java.security.Signature;
+import java.util.List;
+
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.yubico.webauthn.data.AuthenticatorAssertionResponse;
 import com.yubico.webauthn.data.ByteArray;
-import com.yubico.webauthn.data.ClientAssertionExtensionOutputs;
 import com.yubico.webauthn.data.COSEAlgorithmIdentifier;
+import com.yubico.webauthn.data.ClientAssertionExtensionOutputs;
 import com.yubico.webauthn.data.PublicKeyCredential;
 import com.yubico.webauthn.data.PublicKeyCredentialDescriptor;
 import com.yubico.webauthn.data.PublicKeyCredentialRequestOptions;
 import com.yubico.webauthn.data.UserVerificationRequirement;
-
-import java.nio.ByteBuffer;
-import java.security.*;
-import java.util.List;
 
 /**
  * Handles the FIDO2 authentication (get) operation, simulating an authenticator's assertion response.
@@ -33,6 +35,7 @@ public class GetHandler {
     public GetHandler(KeyStoreManager keyStoreManager, ObjectMapper jsonMapper, boolean interactive) {
         this.keyStoreManager = keyStoreManager;
         this.jsonMapper = jsonMapper;
+        this.jsonMapper.setSerializationInclusion(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL);
         this.interactive = interactive;
     }
 
@@ -263,13 +266,19 @@ public class GetHandler {
                 .build();
 
         PublicKeyCredential<AuthenticatorAssertionResponse, ClientAssertionExtensionOutputs> credential =
-                PublicKeyCredential.<AuthenticatorAssertionResponse, ClientAssertionExtensionOutputs>builder()
-                    .id(credentialId)
-                    .response(response)
-                    .clientExtensionResults(ClientAssertionExtensionOutputs.builder().build())
-                    .build();
+            PublicKeyCredential.<AuthenticatorAssertionResponse, ClientAssertionExtensionOutputs>builder()
+                .id(credentialId)
+                .response(response)
+                .clientExtensionResults(ClientAssertionExtensionOutputs.builder().build())
+                .build();
 
-        return jsonMapper.writerWithDefaultPrettyPrinter().writeValueAsString(credential);
+        String jsonString = jsonMapper.writerWithDefaultPrettyPrinter().writeValueAsString(credential);
+        
+        // Add rawId to the response
+        ObjectNode root = jsonMapper.readValue(jsonString, ObjectNode.class);
+        root.set("rawId", root.get("id"));
+        jsonString = jsonMapper.writeValueAsString(root);
+        return jsonString;
     }
 
     private COSEAlgorithmIdentifier determineAlgorithmFromKey(PublicKey publicKey) {
