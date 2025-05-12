@@ -1,3 +1,0 @@
-1. Despres d'editar el codi intenta fer el build: mvn clean package
-2. Les versions de les dependencies del pom.xml les pots buscar a mvncentral.com
-3. Si et costa massa solucionar un problema, busca a internet la solució o la documentació del API
