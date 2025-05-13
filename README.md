@@ -415,7 +415,8 @@ sequenceDiagram
     participant Curl as curl
     participant WebAuthn as https://webauthn.io
 
-    Note over Script,WebAuthn: Registration Process
+    activate Script
+    Note over Script: Start
     
     Script->>Curl: Request registration options
     Curl->>WebAuthn: POST /registration/options
@@ -443,7 +444,8 @@ sequenceDiagram
     participant Curl as curl
     participant WebAuthn as https://webauthn.io
     
-    Note over Script,WebAuthn: Authentication Process
+    activate Script
+    Note over Script: Start
     
     Script->>Curl: Request authentication options
     Curl->>WebAuthn: POST /authentication/options
