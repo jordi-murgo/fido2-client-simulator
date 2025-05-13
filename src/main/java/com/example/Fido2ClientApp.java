@@ -25,7 +25,7 @@ import picocli.CommandLine.Parameters;
  * Main CLI entrypoint for the FIDO2 client simulator.
  * Supports 'create', 'get', and 'info' operations via Picocli.
  */
-@Command(name = "fido2-client", mixinStandardHelpOptions = true, version = "FIDO2 Client Sim 1.0",
+@Command(name = "fido2-client", mixinStandardHelpOptions = true, version = "FIDO2 Client Simulator 1.1",
         description = "Simulates FIDO2 client operations (create/get/info).")
 /**
  * Main entry point for the FIDO2 Client Simulator application.
@@ -39,10 +39,10 @@ import picocli.CommandLine.Parameters;
  *
  * Usage examples:
  * <pre>
- *   java -jar fido2-client-simulator.jar create -f create_options.json
- *   java -jar fido2-client-simulator.jar get -f get_options.json
- *   java -jar fido2-client-simulator.jar create -f create_options.json --json-only
- *   java -jar fido2-client-simulator.jar get -f get_options.json --output result.json
+ *   java -jar fido2-client-simulator.jar create -i create_options.json
+ *   java -jar fido2-client-simulator.jar get -i get_options.json
+ *   java -jar fido2-client-simulator.jar create -i create_options.json --json-only
+ *   java -jar fido2-client-simulator.jar get -i get_options.json --output result.json
  *   java -jar fido2-client-simulator.jar info --pretty --verbose
  * </pre>
  *
@@ -65,7 +65,7 @@ public class Fido2ClientApp implements Callable<Integer> {
     private HandlerFactory handlerFactory;
     // Los handlers se crearán a través de la factory cuando se conozca el valor de interactive
 
-    @Option(names = {"-f", "--file"}, description = "Path to the JSON input file containing options.")
+    @Option(names = {"-i", "--input"}, description = "Path to the JSON input file containing options.")
     File inputFile;
 
     @Option(names = {"--interactive"}, description = "Prompt for credential selection if multiple exist (get only)")
@@ -86,7 +86,7 @@ public class Fido2ClientApp implements Callable<Integer> {
     @Parameters(index = "0", description = "The operation to perform: 'create', 'get', or 'info'.")
     private String operation;
 
-    @Parameters(index = "1", arity = "0..1", description = "JSON string input (alternative to --file).")
+    @Parameters(index = "1", arity = "0..1", description = "JSON string input (alternative to --input).")
     private String jsonInputString;
 
     /**
