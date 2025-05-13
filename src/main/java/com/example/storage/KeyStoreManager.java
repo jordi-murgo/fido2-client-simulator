@@ -1,4 +1,4 @@
-package com.example;
+package com.example.storage;
 
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import com.yubico.webauthn.data.COSEAlgorithmIdentifier;

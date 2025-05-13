@@ -1,4 +1,4 @@
-package com.example;
+package com.example.storage;
 
 import java.util.Map;
 

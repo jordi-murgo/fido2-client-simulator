@@ -1,5 +1,16 @@
 package com.example;
 
+import java.io.File;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.util.concurrent.Callable;
+
+import com.example.handlers.CreateHandler;
+import com.example.handlers.GetHandler;
+import com.example.storage.KeyStoreManager;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.datatype.jdk8.Jdk8Module;
@@ -8,13 +19,6 @@ import picocli.CommandLine;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
 import picocli.CommandLine.Parameters;
-
-import java.io.File;
-import java.io.IOException;
-import java.nio.file.Files;
-import java.util.concurrent.Callable;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 /**
  * Main CLI entrypoint for the FIDO2 client simulator.

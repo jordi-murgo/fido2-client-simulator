@@ -28,3 +28,5 @@ fido2_keystore.p12
 fido2_metadata.json
 
 target/
+.idea/
+

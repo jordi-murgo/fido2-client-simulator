@@ -1,4 +1,4 @@
-package com.example;
+package com.example.handlers;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -8,7 +8,10 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Scanner;
 
+import com.example.storage.KeyStoreManager;
 import com.example.utils.EncodingUtils;
+import com.example.utils.HashUtils;
+import com.example.utils.SignatureUtils;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -144,7 +147,7 @@ public class GetHandler extends BaseHandler {
     }
 
     private byte[] createAuthenticatorData(PublicKeyCredentialRequestOptions options, ByteArray credentialId) {
-        byte[] rpIdHash = EncodingUtils.sha256(options.getRpId().getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        byte[] rpIdHash = HashUtils.sha256(options.getRpId().getBytes(java.nio.charset.StandardCharsets.UTF_8));
         byte flags = (byte) 0x01; // UP flag
         if (options.getUserVerification().orElse(UserVerificationRequirement.DISCOURAGED) == UserVerificationRequirement.REQUIRED) {
             flags |= (byte) 0x04; // UV flag
@@ -163,13 +166,13 @@ public class GetHandler extends BaseHandler {
     }
 
     private byte[] generateSignature(byte[] authenticatorData, String clientDataJson, PrivateKey privateKey) throws SignatureException {
-        byte[] clientDataHash = EncodingUtils.sha256(clientDataJson.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        byte[] clientDataHash = HashUtils.sha256(clientDataJson.getBytes(java.nio.charset.StandardCharsets.UTF_8));
         byte[] dataToSign = ByteBuffer.allocate(authenticatorData.length + clientDataHash.length)
             .put(authenticatorData)
             .put(clientDataHash)
             .array();
         
-        return EncodingUtils.sign(dataToSign, privateKey);
+        return SignatureUtils.sign(dataToSign, privateKey);
     }
 
     /**

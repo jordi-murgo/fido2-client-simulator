@@ -1,4 +1,4 @@
-package com.example;
+package com.example.handlers;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -7,7 +7,10 @@ import java.security.KeyStoreException;
 import java.security.PublicKey;
 import java.util.Map;
 
+import com.example.storage.CredentialMetadata;
+import com.example.storage.KeyStoreManager;
 import com.example.utils.EncodingUtils;
+import com.example.utils.HashUtils;
 import com.example.utils.AuthDataUtils;
 import com.example.utils.PemUtils;
 import com.example.utils.CoseKeyUtils;
@@ -101,7 +104,7 @@ public class CreateHandler extends BaseHandler {
     private byte[] createAttestationObject(PublicKeyCredentialCreationOptions options, ByteArray credentialId, 
                                          PublicKey publicKey, COSEAlgorithmIdentifier selectedAlg) throws Exception {
         // Generate authenticator data
-        byte[] rpIdHash = EncodingUtils.sha256(options.getRp().getId().getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        byte[] rpIdHash = HashUtils.sha256(options.getRp().getId().getBytes(java.nio.charset.StandardCharsets.UTF_8));
         byte flags = (byte) 0x41; // UP and AT flags
         long signCount = 0;
         ByteArray cosePublicKey = CoseKeyUtils.encodeToCose(publicKey, selectedAlg);

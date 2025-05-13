@@ -64,7 +64,7 @@ echo -e "${GREEN}✓ Got registration options${NC}"
 
 # Step 2: Create credential
 echo -e "\n${BLUE}Step 2: Create credential${NC}"
-java -jar "$JAR_PATH" create --json-only --output "$TEST_DIR/create_response.json" < "$TEST_DIR/reg_options_response.json"
+java -jar "$JAR_PATH" create --json-only --output "$TEST_DIR/create_response.json" --verbose < "$TEST_DIR/reg_options_response.json"
 
 # Check if credential was created successfully
 if [ ! -f "$TEST_DIR/create_response.json" ] || ! jq -e . "$TEST_DIR/create_response.json" > /dev/null 2>&1; then

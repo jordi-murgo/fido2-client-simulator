@@ -2,6 +2,7 @@ package com.example.utils;
 
 import java.security.PublicKey;
 import java.security.KeyFactory;
+import java.security.spec.InvalidKeySpecException;
 import java.security.spec.X509EncodedKeySpec;
 import java.util.Base64;
 
@@ -33,6 +34,7 @@ public class PemUtils {
                              .replaceAll("\\s", "");
         byte[] encoded = Base64.getDecoder().decode(pemClean);
         X509EncodedKeySpec keySpec = new X509EncodedKeySpec(encoded);
-        return KeyFactory.getInstance("EC").generatePublic(keySpec); // or "RSA" if using RSA
+        KeyFactory kf = KeyFactory.getInstance("X.509");
+        return kf.generatePublic(keySpec);
     }
 }

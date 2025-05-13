@@ -57,7 +57,7 @@ echo -e "${GREEN}✓ Got authentication options${NC}"
 
 # Step 2: Generate assertion
 echo -e "\n${BLUE}Step 2: Generate assertion${NC}"
-java -jar "$JAR_PATH" get --json-only --output "$TEST_DIR/assertion_response.json" < "$TEST_DIR/auth_options_response.json"
+java -jar "$JAR_PATH" get --json-only --output "$TEST_DIR/assertion_response.json" --verbose < "$TEST_DIR/auth_options_response.json"
 
 # Check if assertion was generated successfully
 if [ ! -f "$TEST_DIR/assertion_response.json" ] || ! jq -e . "$TEST_DIR/assertion_response.json" > /dev/null 2>&1; then
