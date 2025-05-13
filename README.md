@@ -1,24 +1,38 @@
 # FIDO2 Client Simulator
 
-A Java command-line application that simulates a FIDO2 authenticator for registration (`create`) and authentication (`get`) flows, with enhanced debugging and interoperability features.
+A Java command-line application that simulates a FIDO2 authenticator for registration (`create`) and authentication (`get`) flows, with enhanced debugging and interoperability features. Designed with modern architectural patterns and SOLID principles.
 
 **Author:** Jordi Murgo (jordi.murgo@gmail.com)
 
 ## Features
+
+### Core Functionality
 - Simulates `navigator.credentials.create()` and `navigator.credentials.get()`
 - Input: JSON for `PublicKeyCredentialCreationOptions` (create) or `PublicKeyCredentialRequestOptions` (get)
 - Output: JSON representing the FIDO2 `PublicKeyCredential` response
+
+### Architecture and Design
+- **Layered architecture** with clear separation of concerns
+- **Factory Pattern** for credential handler creation
+- **Interfaces** for decoupling (`CredentialStore`) following the Dependency Inversion Principle
+- **Modern functional programming** with Optional, Stream API and lambdas
+- Robust validation with defensive approach and elegant exception handling
+- Structured logging with appropriate levels
+
+### Advanced Features
 - Enhanced metadata storage in JSON format with rich credential information
 - PEM-encoded public key storage for improved interoperability
 - Detailed attestation and authenticator data decoding for debugging
 - Save output directly to file with `--output` option
 - Pretty-print JSON output with `--pretty` option
-- Detailed logging with `--verbose` option
+- Detailed logging with `--verbose` option (with extended information for `info` command)
 - Clean JSON-only output with `--json-only` option for scripting
-- Key storage: Java KeyStore (PKCS12) for secure credential operations
-- Crypto: Uses BouncyCastle and Yubico's WebAuthn libraries
-- JSON: Uses Jackson with CBOR support
-- CLI: Uses Picocli
+
+### Technologies
+- **Key storage**: Java KeyStore (PKCS12) for secure credential operations
+- **Cryptography**: Uses BouncyCastle and Yubico's WebAuthn libraries
+- **JSON**: Uses Jackson with CBOR support
+- **CLI**: Uses Picocli for command-line processing
 
 ## Build Instructions
 
@@ -43,9 +57,9 @@ The FIDO2 Client Simulator supports the following command-line options:
 | `--file`, `-f` | Specify an input file containing JSON options |
 | `--output`, `-o` | Save the output to a specified file |
 | `--pretty` | Format the JSON output with indentation for better readability |
-| `--verbose` | Enable detailed logging for debugging |
+| `--verbose` | Enable detailed logging and show extended information (particularly useful with `info` operation) |
 | `--json-only` | Output only the JSON response (useful for scripting) |
-| `--interactive` | Enable interactive credential selection |
+| `--interactive` | Enable interactive credential selection (for `get` operation) |
 | `--help` | Show help message |
 
 ### Input Methods
@@ -136,6 +150,80 @@ java -jar target/fido2-client-simulator-1.0-SNAPSHOT.jar create --file create_op
 ```bash
 cat create_options.json | java -jar target/fido2-client-simulator-1.0-SNAPSHOT.jar create
 ```
+
+### Credential Store Information (`info`)
+
+The `info` operation displays information about all credentials stored in the keystore and metadata files:
+
+```bash
+java -jar target/fido2-client-simulator-1.0-SNAPSHOT.jar info --pretty
+```
+
+To get more detailed information about the credentials, storage, and system configuration, use the `--verbose` option:
+
+```bash
+java -jar target/fido2-client-simulator-1.0-SNAPSHOT.jar info --verbose --pretty
+```
+
+Example output:
+
+```json
+{
+  "totalCredentials": 2,
+  "relyingParties": [
+    "localhost",
+    "webauthn.io"
+  ],
+  "credentials": [
+    {
+      "id": "81btYVAvQ_q5gTAkOLwVOA",
+      "createdAt": "2025-05-13 10:43:58",
+      "signCount": 0,
+      "relyingParty": {
+        "id": "webauthn.io",
+        "name": "WebAuthn.io"
+      },
+      "user": {
+        "id": "dXNlcl9pZA",
+        "name": "test_user"
+      }
+    },
+    {
+      "id": "_U4-UykeRe6TlR2W2bL1Yg",
+      "createdAt": "2025-05-12 16:24:33",
+      "signCount": 2,
+      "relyingParty": {
+        "id": "localhost",
+        "name": "Test Application"
+      },
+      "user": {
+        "id": "YWJjZGVm",
+        "name": "user1",
+        "displayName": "User One"
+      }
+    }
+  ]
+}
+```
+
+Use the `--details` flag to include additional technical information (public key details, storage paths, etc.):
+
+```bash
+java -jar target/fido2-client-simulator-1.0-SNAPSHOT.jar info --pretty --details
+```
+
+This command is particularly useful for:
+
+- Debugging credential issues
+- Verifying which credentials are available for each relying party
+- Checking the status of the credential store before operations
+- Auditing the credential database
+
+With the `--verbose` option, you'll also see:
+- Public key information in PEM format
+- Storage configuration details including file paths and last update timestamps
+- File status including size and last modified dates
+- System information (Java version, OS, etc.)
 
 ### Authentication (`get`)
 
@@ -350,7 +438,7 @@ This is ideal for:
 
 ### Verbose Logging
 
-Enable detailed logging with the `--verbose` option to see more information about the credential creation or assertion process:
+Enable detailed logging with the `--verbose` option to see more information about the credential creation, assertion process, or stored credentials:
 
 ```bash
 java -jar target/fido2-client-simulator-1.0-SNAPSHOT.jar get --file get_options.json --verbose
@@ -367,6 +455,34 @@ Example verbose output:
 [INFO] Checking 1 credentials from allowCredentials list
 [DEBUG] Checking credential #0: U5HoKUR1ToCH1UeXiUXrKA
 [INFO] Using credential: U5HoKUR1ToCH1UeXiUXrKA (position 0 in allowCredentials list)
+```
+
+For the `info` command, `--verbose` also provides detailed system and configuration information:
+
+```json
+{
+  "configuration": {
+    "storage": {
+      "keystorePath": "fido2_keystore.p12",
+      "metadataPath": "fido2_metadata.json"
+    },
+    "timing": {
+      "lastKeystoreUpdate": "2025-05-13 11:28:36",
+      "lastMetadataUpdate": "2025-05-13 11:29:23"
+    },
+    "fileStatus": {
+      "keystoreExists": true,
+      "metadataExists": true,
+      "keystoreSize": "1022 bytes",
+      "keystoreLastModified": "2025-05-13 11:28:36"
+    },
+    "system": {
+      "javaVersion": "24.0.1",
+      "osName": "Mac OS X",
+      "currentTime": "2025-05-13 12:10:55"
+    }
+  }
+}
 ...
 ```
 
@@ -375,6 +491,47 @@ Each credential's public key is stored in standard PEM format (X.509 SubjectPubl
 - Easy interoperability with other systems and languages
 - Direct use for signature verification without accessing the keystore
 - Standard format for cryptographic operations
+
+### Configuration File System
+
+The FIDO2 Client Simulator supports external configuration via properties files. This allows you to customize the storage locations and security settings without modifying the code, following the Open/Closed principle.
+
+#### Configuration File Locations
+
+The configuration is loaded from the following locations in order of precedence:
+
+1. Current directory: `fido2_config.properties`
+2. User home directory: `~/.fido2/config.properties`
+3. System-wide: `/etc/fido2/config.properties`
+4. Application classpath (default embedded configuration)
+
+#### Available Configuration Properties
+
+| Property | Description | Default Value |
+|----------|-------------|---------------|
+| `keystore.path` | Path to the PKCS12 keystore file | `fido2_keystore.p12` |
+| `metadata.path` | Path to the JSON metadata file | `fido2_metadata.json` |
+| `keystore.password` | Password for the keystore | `fido2simulator` |
+| `log.level` | Logging level | `INFO` |
+
+#### Example Configuration File
+
+```properties
+# FIDO2 Client Simulator Configuration
+
+# Paths for credential storage
+# You can use relative or absolute paths
+keystore.path=/secure/path/fido2_keystore.p12
+metadata.path=/secure/path/fido2_metadata.json
+
+# Security settings
+keystore.password=your_secure_password
+
+# Logging configuration
+log.level=INFO
+```
+
+A sample configuration file is included as `fido2_config.properties.sample` which you can copy and customize to your needs.
 
 ### Attestation Object Decoding
 During credential creation, the attestation object is automatically decoded and displayed:
@@ -526,5 +683,95 @@ To run the script:
 - See the code for more details and documentation
 
 ---
+
+## System Architecture
+
+The FIDO2 Client Simulator is designed following SOLID principles and modern design patterns to ensure maintainability, testability, and extensibility.
+
+### Component Diagram
+
+```mermaid
+graph TD
+    CLI[CLI - Command Line Interface] --> App[Fido2ClientApp]
+    App --> Factory[HandlerFactory]
+    Factory --> CreateH[CreateHandler]
+    Factory --> GetH[GetHandler]
+    CreateH --> CredStore[CredentialStore]
+    GetH --> CredStore
+    CredStore --> KeyStore[KeyStoreManager]
+    KeyStore --> PKCS12[(PKCS12 KeyStore)]
+    KeyStore --> MetaData[(JSON Metadata)]
+    
+    classDef interface fill:#f9f,stroke:#333,stroke-dasharray: 5 5;
+    classDef implementation fill:#9cf,stroke:#333;
+    classDef data fill:#fcf,stroke:#333;
+    
+    class CredStore interface;
+    class KeyStore,CreateH,GetH,Factory implementation;
+    class PKCS12,MetaData data;
+```
+
+### Implemented Design Patterns
+
+#### 1. Repository Pattern (CredentialStore)
+
+`CredentialStore` acts as an abstract repository for credential storage operations, decoupling business logic from the persistence mechanism:
+
+```java
+public interface CredentialStore {
+    Optional<PublicKey> getPublicKey(ByteArray credentialId) throws KeyStoreException;
+    Optional<PrivateKey> getPrivateKey(ByteArray credentialId) throws KeyStoreException, UnrecoverableKeyException;
+    boolean hasCredential(ByteArray credentialId);
+    List<ByteArray> getCredentialIdsForRpId(String rpId);
+    // ... other methods
+}
+```
+
+#### 2. Factory Pattern (HandlerFactory)
+
+Implementation of the Factory pattern for creating specific handlers:
+
+```java
+public class HandlerFactory {
+    // ...
+    public CredentialHandler createHandler(String operation, boolean interactive) {
+        if ("create".equalsIgnoreCase(operation)) {
+            return new CreateHandler(credentialStore, jsonMapper);
+        } else if ("get".equalsIgnoreCase(operation)) {
+            return new GetHandler(credentialStore, jsonMapper, interactive);
+        }
+        throw new IllegalArgumentException("Unknown operation: " + operation);
+    }
+}
+```
+
+#### 3. Strategy Pattern (Handlers)
+
+The `CreateHandler` and `GetHandler` handlers implement different strategies for processing FIDO2 operations, sharing the common `CredentialHandler` interface.
+
+#### 4. Functional Programming and Optional
+
+Use of modern functional programming techniques for more concise and safer code:
+
+```java
+default List<ByteArray> getCredentialsByPredicate(Predicate<CredentialMetadata> filter) {
+    Objects.requireNonNull(filter, "The filter predicate cannot be null");
+    
+    return getMetadataMap().values().stream()
+            .filter(filter)
+            .map(this::extractCredentialId)
+            .filter(Optional::isPresent)
+            .map(Optional::get)
+            .collect(Collectors.toUnmodifiableList());
+}
+```
+
+### Architecture Benefits
+
+1. **Testability**: The use of interfaces facilitates testing with mocks.
+2. **Extensibility**: New storage types can implement `CredentialStore`.
+3. **Maintainability**: Clear separation of responsibilities.
+4. **Security**: Robust exception handling and input validation.
+5. **Evolution**: Facilitates the incorporation of new features without modifying existing code.
 
 © 2025 Jordi Murgo (jordi.murgo@gmail.com). FIDO2 Client Simulator. MIT License.

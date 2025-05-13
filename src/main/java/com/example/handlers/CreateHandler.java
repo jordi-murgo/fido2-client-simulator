@@ -8,8 +8,8 @@ import java.security.PublicKey;
 import java.util.Map;
 
 import com.example.storage.CredentialMetadata;
+import com.example.storage.CredentialStore;
 import com.example.storage.KeyStoreManager;
-import com.example.utils.EncodingUtils;
 import com.example.utils.HashUtils;
 import com.example.utils.AuthDataUtils;
 import com.example.utils.PemUtils;
@@ -28,16 +28,28 @@ import com.yubico.webauthn.data.PublicKeyCredentialParameters;
 /**
  * Handles the FIDO2 registration (create) operation, simulating an authenticator's credential creation.
  */
-public class CreateHandler extends BaseHandler {
+public class CreateHandler extends BaseHandler implements CredentialHandler {
+    private static final java.util.logging.Logger logger = java.util.logging.Logger.getLogger(CreateHandler.class.getName());
+
+    @Override
+    public String handleRequest(String requestJson) throws Exception {
+        return handleCreate(requestJson);
+    }
+
     private static final ByteArray AAGUID = new ByteArray(new byte[16]); // Zero AAGUID for software authenticator
 
     /**
      * Constructs a CreateHandler.
-     * @param keyStoreManager The KeyStoreManager instance
+     * @param credentialStore The KeyStoreManager instance
      * @param jsonMapper The Jackson ObjectMapper
      */
-    public CreateHandler(KeyStoreManager keyStoreManager, ObjectMapper jsonMapper) {
-        super(keyStoreManager, jsonMapper);
+    /**
+     * Constructs a CreateHandler.
+     * @param credentialStore The CredentialStore instance
+     * @param jsonMapper The Jackson ObjectMapper
+     */
+    public CreateHandler(CredentialStore credentialStore, ObjectMapper jsonMapper) {
+        super(credentialStore, jsonMapper);
     }
 
     /**
@@ -57,7 +69,7 @@ public class CreateHandler extends BaseHandler {
             
             // 2. Generate credential ID and key pair
             ByteArray credentialId = KeyStoreManager.generateRandomCredentialId();
-            KeyPair keyPair = keyStoreManager.generateAndStoreKeyPair(credentialId, options.getUser().getId(), selectedAlg);
+            KeyPair keyPair = credentialStore.generateAndStoreKeyPair(credentialId, options.getUser().getId(), selectedAlg);
             
             // 3. Create attestation object
             byte[] attestationObject = createAttestationObject(options, credentialId, keyPair.getPublic(), selectedAlg);
@@ -68,11 +80,21 @@ public class CreateHandler extends BaseHandler {
             // 5. Create response
             AuthenticatorAttestationResponse response = createAttestationResponse(attestationObject, clientDataJson);
             
-            // 6. Create credential
-            PublicKeyCredential<AuthenticatorAttestationResponse, ClientRegistrationExtensionOutputs> credential = createCredential(credentialId, response);
+            // 6 y 7. Crear respuesta JSON directamente (evitando PublicKeyCredential que puede causar UnsupportedOperationException)
+            // Construimos el JSON manualmente para evitar problemas de serialización con objetos complejos
+            ObjectNode credentialNode = jsonMapper.createObjectNode();
+            credentialNode.put("id", credentialId.getBase64Url());
+            credentialNode.put("rawId", credentialId.getBase64Url());
+            credentialNode.put("type", "public-key");
             
-            // 7. Convert to JSON and add rawId
-            String registrationResponseJson = jsonMapper.writerWithDefaultPrettyPrinter().writeValueAsString(credential);
+            ObjectNode responseNode = jsonMapper.createObjectNode();
+            responseNode.put("clientDataJSON", response.getClientDataJSON().getBase64Url());
+            responseNode.put("attestationObject", response.getAttestationObject().getBase64Url());
+            
+            credentialNode.set("response", responseNode);
+            
+            // Crear JSON de respuesta
+            String registrationResponseJson = jsonMapper.writerWithDefaultPrettyPrinter().writeValueAsString(credentialNode);
             
             // 8. Log attestation object details
             logAttestationObject(registrationResponseJson);
@@ -81,9 +103,25 @@ public class CreateHandler extends BaseHandler {
             saveMetadata(credentialId, registrationResponseJson, options);
             
             // 10. Add rawId and return
-            return addRawIdToResponse(registrationResponseJson);
+            try {
+                return addRawIdToResponse(registrationResponseJson);
+            } catch (UnsupportedOperationException uoe) {
+                uoe.printStackTrace(); // Imprimir el stack trace completo para localizar el origen exacto
+                // Crear respuesta de error con detalles para ayudar en la depuración
+                ObjectNode errorNode = jsonMapper.createObjectNode();
+                errorNode.put("status", "error");
+                errorNode.put("error", "UnsupportedOperationException");
+                errorNode.put("message", uoe.getMessage() != null ? uoe.getMessage() : "No message");
+                errorNode.put("location", "Ocurrió en: " + uoe.getStackTrace()[0]);
+                
+                return jsonMapper.writeValueAsString(errorNode); // Devolver JSON de error en lugar de lanzar excepción
+            }
         } catch (IOException | KeyStoreException e) {
-            throw new Exception("Error during credential creation: " + e.getMessage(), e);
+            e.printStackTrace(); // Imprimir el stack trace para depuración
+            throw new Exception("Error durante la creación de credenciales: " + e.getMessage(), e);
+        } catch (Exception ex) {
+            ex.printStackTrace(); // Imprimir cualquier otra excepción
+            throw new Exception("Error inesperado: " + ex.getMessage(), ex);
         }
     }
 
@@ -203,9 +241,16 @@ public class CreateHandler extends BaseHandler {
      * @param options The creation options
      * @throws KeyStoreException if an error occurs with the keystore
      */
+    /**
+     * Saves credential metadata.
+     * @param credentialId The credential ID
+     * @param registrationResponseJson The registration response JSON
+     * @param options The creation options
+     * @throws KeyStoreException if an error occurs with the keystore
+     */
     private void saveMetadata(ByteArray credentialId, String registrationResponseJson, 
                             PublicKeyCredentialCreationOptions options) throws KeyStoreException {
-        if (keyStoreManager != null) {
+        if (credentialStore != null) {
             try {
                 CredentialMetadata meta = new CredentialMetadata();
                 meta.credentialId = credentialId.getBase64Url();
@@ -217,14 +262,17 @@ public class CreateHandler extends BaseHandler {
                     new com.fasterxml.jackson.core.type.TypeReference<Map<String, Object>>() {});
                 
                 try {
-                    PublicKey pubKey = keyStoreManager.getPublicKey(credentialId);
-                    meta.publicKeyPem = pubKey != null ? PemUtils.publicKeyToPem(pubKey) : null;
+                    // Usar Optional para obtener la clave pública
+                    meta.publicKeyPem = credentialStore.getPublicKey(credentialId)
+                        .map(PemUtils::publicKeyToPem)
+                        .orElse(null);
                 } catch (KeyStoreException e) {
                     meta.publicKeyPem = null;
                 }
                 
-                keyStoreManager.metadataMap.put(meta.credentialId, meta);
-                keyStoreManager.saveMetadata();
+                // Usar el nuevo método addCredentialMetadata() en lugar de intentar modificar el mapa directamente
+                credentialStore.addCredentialMetadata(meta.credentialId, meta);
+                credentialStore.saveMetadata();
             } catch (IOException e) {
                 throw new KeyStoreException("Failed to save metadata: " + e.getMessage(), e);
             }

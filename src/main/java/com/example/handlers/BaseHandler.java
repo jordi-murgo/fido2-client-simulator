@@ -2,7 +2,7 @@ package com.example.handlers;
 
 import java.util.Base64;
 
-import com.example.storage.KeyStoreManager;
+import com.example.storage.CredentialStore;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -15,16 +15,16 @@ import com.yubico.webauthn.data.PublicKeyCredentialRequestOptions;
  * Base class for FIDO2 handlers providing common functionality.
  */
 public abstract class BaseHandler {
-    protected final KeyStoreManager keyStoreManager;
+    protected final CredentialStore credentialStore;
     protected final ObjectMapper jsonMapper;
     
     /**
      * Constructs a BaseHandler.
-     * @param keyStoreManager The KeyStoreManager instance
+     * @param credentialStore The CredentialStore instance
      * @param jsonMapper The Jackson ObjectMapper
      */
-    public BaseHandler(KeyStoreManager keyStoreManager, ObjectMapper jsonMapper) {
-        this.keyStoreManager = keyStoreManager;
+    public BaseHandler(CredentialStore credentialStore, ObjectMapper jsonMapper) {
+        this.credentialStore = credentialStore;
         this.jsonMapper = jsonMapper;
         configureObjectMapper();
     }
@@ -43,11 +43,26 @@ public abstract class BaseHandler {
      * @throws JsonProcessingException if JSON processing fails
      */
     protected String addRawIdToResponse(String jsonResponse) throws JsonProcessingException {
-        ObjectNode responseNode = jsonMapper.readTree(jsonResponse).deepCopy();
-        if (responseNode.has("id") && !responseNode.has("rawId")) {
-            responseNode.put("rawId", responseNode.get("id").asText());
+        try {
+            // En lugar de usar deepCopy(), parseamos el JSON a un nuevo ObjectNode
+            JsonNode tree = jsonMapper.readTree(jsonResponse);
+            ObjectNode responseNode = jsonMapper.createObjectNode();
+            
+            // Copiamos manualmente todos los campos
+            tree.fieldNames().forEachRemaining(fieldName -> {
+                responseNode.set(fieldName, tree.get(fieldName));
+            });
+            
+            // Añadimos rawId si es necesario
+            if (responseNode.has("id") && !responseNode.has("rawId")) {
+                responseNode.put("rawId", responseNode.get("id").asText());
+            }
+            
+            return jsonMapper.writeValueAsString(responseNode);
+        } catch (Exception e) {
+            // Si hay algún error, devolvemos el JSON original
+            return jsonResponse;
         }
-        return jsonMapper.writeValueAsString(responseNode);
     }
 
     /**

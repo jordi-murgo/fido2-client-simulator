@@ -7,9 +7,7 @@ import java.security.SignatureException;
 import java.util.List;
 import java.util.Optional;
 import java.util.Scanner;
-
-import com.example.storage.KeyStoreManager;
-import com.example.utils.EncodingUtils;
+import com.example.storage.CredentialStore;
 import com.example.utils.HashUtils;
 import com.example.utils.SignatureUtils;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -21,21 +19,24 @@ import com.yubico.webauthn.data.ClientAssertionExtensionOutputs;
 import com.yubico.webauthn.data.PublicKeyCredential;
 import com.yubico.webauthn.data.PublicKeyCredentialDescriptor;
 import com.yubico.webauthn.data.PublicKeyCredentialRequestOptions;
-import com.yubico.webauthn.data.UserVerificationRequirement;
 
 /**
  * Handles the FIDO2 authentication (get) operation, simulating an authenticator's credential usage.
  */
-public class GetHandler extends BaseHandler {
+public class GetHandler extends BaseHandler implements CredentialHandler {
+    @Override
+    public String handleRequest(String requestJson) throws Exception {
+        return handleGet(requestJson);
+    }
     private boolean interactive;
     /**
      * Constructs a GetHandler.
-     * @param keyStoreManager The KeyStoreManager instance
+     * @param credentialStore The CredentialStore instance
      * @param jsonMapper The Jackson ObjectMapper
      * @param interactive Whether to enable interactive credential selection
      */
-    public GetHandler(KeyStoreManager keyStoreManager, ObjectMapper jsonMapper, boolean interactive) {
-        super(keyStoreManager, jsonMapper);
+    public GetHandler(CredentialStore credentialStore, ObjectMapper jsonMapper, boolean interactive) {
+        super(credentialStore, jsonMapper);
         this.interactive = interactive;
     }
 
@@ -59,10 +60,8 @@ public class GetHandler extends BaseHandler {
             ByteArray credentialId = selectCredential(options);
             
             // 2. Get private key from keystore
-            PrivateKey privateKey = keyStoreManager.getPrivateKey(credentialId);
-            if (privateKey == null) {
-                throw new IllegalStateException("No private key found for credential: " + credentialId.getBase64Url());
-            }
+            PrivateKey privateKey = credentialStore.getPrivateKey(credentialId)
+                .orElseThrow(() -> new IllegalArgumentException("No private key found for credential ID: " + credentialId.getBase64Url()));
             
             // 3. Create authenticator data
             byte[] authenticatorData = createAuthenticatorData(options, credentialId);
@@ -90,7 +89,7 @@ public class GetHandler extends BaseHandler {
     private ByteArray selectCredential(PublicKeyCredentialRequestOptions options) {
         Optional<List<PublicKeyCredentialDescriptor>> allowedCredentialsOpt = options.getAllowCredentials();
         List<PublicKeyCredentialDescriptor> allowedCredentials = allowedCredentialsOpt.orElse(List.of());
-        List<ByteArray> availableCredentialIds = keyStoreManager.getCredentialIdsForRpId(options.getRpId());
+        List<ByteArray> availableCredentialIds = credentialStore.getCredentialIdsForRpId(options.getRpId());
         
         List<ByteArray> matchingCredentialIds = availableCredentialIds.stream()
             .filter(id -> allowedCredentials.isEmpty() || 
@@ -115,45 +114,45 @@ public class GetHandler extends BaseHandler {
     }
 
     private ByteArray promptForCredentialSelection(List<ByteArray> credentialIds) {
-        // Display available credentials
-        System.out.println("\nMultiple credentials found. Please select one:");
+        System.out.println("\nAvailable credentials:");
         for (int i = 0; i < credentialIds.size(); i++) {
-            System.out.printf("%d. %s%n", i + 1, credentialIds.get(i).getBase64Url());
+            System.out.println((i + 1) + ": " + credentialIds.get(i).getBase64Url());
         }
         
-        try {
-            System.out.print("Enter your choice (1-" + credentialIds.size() + "): ");
-            Scanner scanner = new Scanner(System.in);
-            
-            // Check if input is available without blocking (for scripts)
-            if (System.in.available() > 0) {
-                int choice = scanner.nextInt();
-                if (choice >= 1 && choice <= credentialIds.size()) {
-                    return credentialIds.get(choice - 1);
+        System.out.print("Select credential (1-" + credentialIds.size() + "): ");
+        int selection = 1; // Default to first credential
+        
+        try (Scanner scanner = new Scanner(System.in)) {
+            String input = scanner.nextLine().trim();
+            if (!input.isEmpty()) {
+                selection = Integer.parseInt(input);
+                if (selection < 1 || selection > credentialIds.size()) {
+                    System.out.println("Invalid selection, using first credential.");
+                    selection = 1;
                 }
             } else {
-                // If running non-interactively or can't read input, select the first credential
-                System.out.println("No input available, automatically selecting first credential.");
-                return credentialIds.get(0);
+                System.out.println("No selection made, using first credential.");
             }
-        } catch (Exception e) {
-            // If any error occurs (including IO exceptions or format errors), select the first credential
-            System.out.println("Error during selection, automatically selecting first credential: " + e.getMessage());
-            return credentialIds.get(0);
+        } catch (NumberFormatException e) {
+            System.out.println("Invalid input, using first credential.");
         }
         
-        // Default to first credential
-        return credentialIds.get(0);
+        ByteArray selectedCredential = credentialIds.get(selection - 1);
+        System.out.println("Selected credential: " + selectedCredential.getBase64Url());
+        return selectedCredential;
     }
 
-    private byte[] createAuthenticatorData(PublicKeyCredentialRequestOptions options, ByteArray credentialId) {
-        byte[] rpIdHash = HashUtils.sha256(options.getRpId().getBytes(java.nio.charset.StandardCharsets.UTF_8));
-        byte flags = (byte) 0x01; // UP flag
-        if (options.getUserVerification().orElse(UserVerificationRequirement.DISCOURAGED) == UserVerificationRequirement.REQUIRED) {
-            flags |= (byte) 0x04; // UV flag
-        }
-        long signCount = keyStoreManager.getSignCount(credentialId);
+    private byte[] createAuthenticatorData(PublicKeyCredentialRequestOptions options, ByteArray credentialId) throws Exception {
+        // Get the RP ID hash
+        byte[] rpIdHash = HashUtils.sha256(options.getRpId());
         
+        // Set the flags (UP=1)
+        byte flags = (byte) 0x01; // User Present = true
+        
+        // Get the signature counter using functional approach
+        long signCount = credentialStore.incrementAndSaveSignCount(credentialId);
+        
+        // Compose the authenticator data
         return composeAuthenticatorData(rpIdHash, flags, signCount);
     }
 

@@ -5,8 +5,9 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.util.concurrent.Callable;
 
-import com.example.handlers.CreateHandler;
-import com.example.handlers.GetHandler;
+import com.example.handlers.CredentialHandler;
+import com.example.handlers.HandlerFactory;
+import com.example.storage.CredentialStore;
 import com.example.storage.KeyStoreManager;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -22,17 +23,18 @@ import picocli.CommandLine.Parameters;
 
 /**
  * Main CLI entrypoint for the FIDO2 client simulator.
- * Supports 'create' and 'get' operations via Picocli.
+ * Supports 'create', 'get', and 'info' operations via Picocli.
  */
 @Command(name = "fido2-client", mixinStandardHelpOptions = true, version = "FIDO2 Client Sim 1.0",
-        description = "Simulates FIDO2 client operations (create/get).")
+        description = "Simulates FIDO2 client operations (create/get/info).")
 /**
  * Main entry point for the FIDO2 Client Simulator application.
  * <p>
  * This class provides a command-line interface for simulating FIDO2 registration and authentication flows.
  * It manages the creation and retrieval of credentials, handles user and RP information, and provides
  * clear error messages for a better user experience. Stack traces are logged at debug level, but not displayed
- * to the user, ensuring a clean and professional output.
+ * to the user, ensuring a clean and professional output. Added support for the 'info' operation to display
+ * stored credentials and metadata.
  * </p>
  *
  * Usage examples:
@@ -41,6 +43,7 @@ import picocli.CommandLine.Parameters;
  *   java -jar fido2-client-simulator.jar get -f get_options.json
  *   java -jar fido2-client-simulator.jar create -f create_options.json --json-only
  *   java -jar fido2-client-simulator.jar get -f get_options.json --output result.json
+ *   java -jar fido2-client-simulator.jar info --pretty --verbose
  * </pre>
  *
  * Dependencies:
@@ -57,10 +60,10 @@ import picocli.CommandLine.Parameters;
 public class Fido2ClientApp implements Callable<Integer> {
     private static final Logger logger = LoggerFactory.getLogger(Fido2ClientApp.class);
 
-    private KeyStoreManager keyStoreManager;
+    private CredentialStore credentialStore;
     private ObjectMapper jsonMapper;
-    private CreateHandler createHandler;
-    // GetHandler es crearà al mètode call() quan es conegui el valor d'interactive
+    private HandlerFactory handlerFactory;
+    // Los handlers se crearán a través de la factory cuando se conozca el valor de interactive
 
     @Option(names = {"-f", "--file"}, description = "Path to the JSON input file containing options.")
     File inputFile;
@@ -80,7 +83,7 @@ public class Fido2ClientApp implements Callable<Integer> {
     @Option(names = {"--verbose"}, description = "Enable verbose output with detailed logging")
     boolean verbose = false;
 
-    @Parameters(index = "0", description = "The operation to perform: 'create' or 'get'.")
+    @Parameters(index = "0", description = "The operation to perform: 'create', 'get', or 'info'.")
     private String operation;
 
     @Parameters(index = "1", arity = "0..1", description = "JSON string input (alternative to --file).")
@@ -90,12 +93,18 @@ public class Fido2ClientApp implements Callable<Integer> {
      * Constructs the CLI app and initializes handlers and JSON codecs.
      */
     public Fido2ClientApp() {
-        // Inicialitzar només el necessari, GetHandler es crearà quan es conegui el valor d'interactive
-        this.keyStoreManager = new KeyStoreManager();
-        this.jsonMapper = new ObjectMapper()
-                .registerModule(new Jdk8Module())
-                .configure(SerializationFeature.INDENT_OUTPUT, true); // Enable pretty printing by default
-        this.createHandler = new CreateHandler(keyStoreManager, jsonMapper);
+        try {
+            // Inicializar solo lo necesario, los handlers se crearán cuando se conozca el valor de interactive
+            this.credentialStore = new KeyStoreManager();
+            this.jsonMapper = new ObjectMapper()
+                    .registerModule(new Jdk8Module())
+                    .configure(SerializationFeature.INDENT_OUTPUT, true); // Enable pretty printing by default
+            this.handlerFactory = new HandlerFactory(credentialStore, jsonMapper);
+        } catch (Exception e) {
+            System.err.println("ERROR: Failed to initialize the FIDO2 client: " + e.getMessage());
+            // En un entorno de producción, se debe considerar un manejo más robusto
+            throw new RuntimeException("Failed to initialize the FIDO2 client", e);
+        }
     }
 
     /**
@@ -116,19 +125,24 @@ public class Fido2ClientApp implements Callable<Integer> {
      */
     @Override
     public Integer call() throws Exception {
-        // Configure logging verbosity
-        if (verbose && !jsonOnly) {
-            // Enable more detailed logging when verbose mode is active
+        // Configure logging based on options
+        if (verbose) {
             System.setProperty("org.slf4j.simpleLogger.defaultLogLevel", "DEBUG");
-        } else if (jsonOnly) {
-            // Disable all logging in JSON-only mode
-            System.setProperty("org.slf4j.simpleLogger.defaultLogLevel", "OFF");
+        } else {
+            System.setProperty("org.slf4j.simpleLogger.defaultLogLevel", "INFO");
         }
         
-        // Read input JSON from file, command line, or stdin
-        String inputJson = readInputJson();
-        if (inputJson == null) {
-            return 1; // Error already reported
+        // Apply JSON formatting based on options
+        jsonMapper.configure(SerializationFeature.INDENT_OUTPUT, prettyPrint);
+        
+        // For info operation, input JSON is optional
+        String inputJson = null;
+        if (!"info".equalsIgnoreCase(operation)) {
+            // Read input JSON for create/get operations
+            inputJson = readInputJson();
+            if (inputJson == null) {
+                return 1; // Error reading input
+            }
         }
         
         try {
@@ -229,29 +243,45 @@ public class Fido2ClientApp implements Callable<Integer> {
      */
     private String processOperation(String inputJson) {
         try {
-            if ("create".equalsIgnoreCase(operation)) {
-                String result = createHandler.handleCreate(inputJson);
+            CredentialHandler handler;
+            
+            if ("info".equalsIgnoreCase(operation)) {
+                // For info operation, we use the verbose flag to show detailed information
+                handler = handlerFactory.createHandler(operation, interactive, verbose);
+                
+                // Info operation doesn't require input JSON usually, but we'll pass empty string to be consistent
+                String result = handler.handleRequest(inputJson != null ? inputJson : "{}");
                 if (!jsonOnly && verbose) {
-                    logger.info("Create operation successful.");
-                }
-                return result;
-            } else if ("get".equalsIgnoreCase(operation)) {
-                // Create GetHandler here, after Picocli has processed the interactive flag
-                GetHandler getHandler = new GetHandler(keyStoreManager, jsonMapper, interactive);
-                if (interactive && verbose && !jsonOnly) {
-                    logger.debug("Running in interactive mode");
-                }
-                String result = getHandler.handleGet(inputJson);
-                if (!jsonOnly && verbose) {
-                    logger.info("Get operation successful.");
+                    logger.info("Info operation successful.");
                 }
                 return result;
             } else {
-                reportError("Invalid operation: " + operation + ". Must be 'create' or 'get'.", null);
-                return null;
+                // For create and get operations
+                handler = handlerFactory.createHandler(operation, interactive);
+                
+                if ("create".equalsIgnoreCase(operation)) {
+                    String result = handler.handleRequest(inputJson);
+                    if (!jsonOnly && verbose) {
+                        logger.info("Create operation successful.");
+                    }
+                    return result;
+                } else if ("get".equalsIgnoreCase(operation)) {
+                    if (interactive && verbose && !jsonOnly) {
+                        logger.debug("Running in interactive mode");
+                    }
+                    String result = handler.handleRequest(inputJson);
+                    if (!jsonOnly && verbose) {
+                        logger.info("Get operation successful.");
+                    }
+                    return result;
+                } else {
+                    reportError("Invalid operation: " + operation + ". Must be 'create', 'get', or 'info'.", null);
+                    return null;
+                }
             }
         } catch (Exception e) {
-            reportError("Error processing operation: " + e.getMessage(), e);
+            String errorMessage = e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName();
+            reportError("Error processing operation: " + errorMessage, e);
             return null;
         }
     }
