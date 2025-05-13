@@ -400,22 +400,121 @@ This detailed decoding helps with:
 - Understanding the internal structure of credentials
 - Verifying correct flag settings and credential data
 
-## Demo Script
+## WebAuthn.io Example Scripts
 
-The project includes a demo script (`demo-fido2-client.sh`) that demonstrates the main features of the FIDO2 Client Simulator:
+The project includes two example scripts that demonstrate how to use FIDO2 Client Simulator with the WebAuthn.io demo site. These scripts provide a complete end-to-end demonstration of both registration and authentication flows.
 
-```bash
-./demo-fido2-client.sh
+### WebAuthn.io Integration Diagrams
+
+#### Registration Flow Sequence Diagram
+
+```mermaid
+sequenceDiagram
+    participant Simulator as fido2-client-simulator.jar
+    participant Script as webauthn-io-tutorial-registration.sh
+    participant Curl as curl
+    participant WebAuthn as https://webauthn.io
+
+    Note over Script,WebAuthn: Registration Process
+    
+    Script->>Curl: Request registration options
+    Curl->>WebAuthn: POST /registration/options
+    WebAuthn-->>Curl: Return PublicKeyCredentialCreationOptions
+    Curl-->>Script: Save options to file
+    
+    Script->>Simulator: Pass options to simulator
+    Note right of Simulator: Generate key pair & attestation
+    Simulator-->>Script: Return credential response
+    
+    Script->>Curl: Submit credential for verification
+    Curl->>WebAuthn: POST /registration/verification
+    WebAuthn-->>Curl: Verify and return result
+    Curl-->>Script: Report verification status
+    
+    Note over Script: Save all data for analysis
 ```
 
-The demo script:
-1. Creates sample registration options
-2. Uses the simulator to create a credential
-3. Creates sample authentication options
-4. Uses the simulator to generate an assertion
-5. Demonstrates all the new features (pretty printing, output to file, JSON-only mode, verbose logging)
+#### Authentication Flow Sequence Diagram
 
-This is a great way to quickly see the simulator in action and understand how to use all its features.
+```mermaid
+sequenceDiagram
+    participant Simulator as fido2-client-simulator.jar
+    participant Script as webauthn-io-tutorial-authentication.sh
+    participant Curl as curl
+    participant WebAuthn as https://webauthn.io
+    
+    Note over Script,WebAuthn: Authentication Process
+    
+    Script->>Curl: Request authentication options
+    Curl->>WebAuthn: POST /authentication/options
+    WebAuthn-->>Curl: Return PublicKeyCredentialRequestOptions
+    Curl-->>Script: Save options to file
+    
+    Script->>Simulator: Pass options to simulator
+    Note right of Simulator: Load credential & generate assertion
+    Simulator-->>Script: Return assertion response
+    
+    Script->>Curl: Submit assertion for verification
+    Curl->>WebAuthn: POST /authentication/verification
+    WebAuthn-->>Curl: Verify and return result
+    Curl-->>Script: Report verification status
+    
+    Note over Script: Save all data for analysis
+```
+
+### Registration Script (webauthn-io-tutorial-registration.sh)
+
+This script demonstrates a complete FIDO2 registration flow with webauthn.io:
+
+1. **Fetch Registration Options**: Uses curl to request registration options from webauthn.io
+2. **Create Credential**: Passes the options to fido2-client-simulator to create a new credential
+3. **Verify Registration**: Submits the credential back to webauthn.io for verification
+
+To run the script:
+```bash
+./webauthn-io-tutorial-registration.sh
+```
+
+The script outputs detailed information about each step of the process and saves all request/response data in the `target/webauthn-io-tutorial` directory for later analysis.
+
+### Authentication Script (webauthn-io-tutorial-authentication.sh)
+
+This script demonstrates a complete FIDO2 authentication flow with webauthn.io:
+
+1. **Fetch Authentication Options**: Uses curl to request authentication options from webauthn.io
+2. **Generate Assertion**: Passes the options to fido2-client-simulator to generate an assertion
+3. **Verify Authentication**: Submits the assertion back to webauthn.io for verification
+
+To run the script:
+```bash
+./webauthn-io-tutorial-authentication.sh
+```
+
+**Note**: You should run the registration script first to create a credential before running the authentication script.
+
+### Flow Breakdown
+
+#### Registration Flow:
+1. Script sends a request to webauthn.io for registration options
+2. webauthn.io responds with PublicKeyCredentialCreationOptions
+3. fido2-client-simulator receives the options and creates a credential
+4. Script sends the credential back to webauthn.io for verification
+5. webauthn.io verifies the credential and confirms success
+
+#### Authentication Flow:
+1. Script sends a request to webauthn.io for authentication options
+2. webauthn.io responds with PublicKeyCredentialRequestOptions
+3. fido2-client-simulator receives the options and generates an assertion
+4. Script sends the assertion back to webauthn.io for verification
+5. webauthn.io verifies the assertion and confirms success
+
+### Benefits of Using These Scripts
+
+- Demonstrates real-world FIDO2 flows with a public WebAuthn demo site
+- Shows how to integrate the simulator with web applications
+- Provides examples of handling JSON data between different components
+- Useful for learning WebAuthn/FIDO2 protocols and debugging issues
+- All intermediate files are saved for inspection and analysis
 
 ## Notes
 - Change the keystore password in production!
