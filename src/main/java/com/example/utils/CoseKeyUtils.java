@@ -1,4 +1,4 @@
-package com.example;
+package com.example.utils;
 
 import com.yubico.webauthn.data.ByteArray;
 import com.yubico.webauthn.data.COSEAlgorithmIdentifier;
@@ -14,7 +14,7 @@ import java.util.Map;
  * Utility for encoding Java PublicKey to COSE_Key structure as ByteArray.
  * Supports ES256 (EC P-256) and RS256 (RSA 2048).
  */
-public class UtilPublicKeyCose {
+public class CoseKeyUtils {
     /**
      * Encode a Java PublicKey to COSE_Key format as ByteArray.
      * Only supports ES256 (EC) and RS256 (RSA).
@@ -41,7 +41,7 @@ public class UtilPublicKeyCose {
         coseKey.put(-1, 1); // crv: P-256
         coseKey.put(-2, unsignedCoordinate(ecPublicKey.getW().getAffineX(), 32));
         coseKey.put(-3, unsignedCoordinate(ecPublicKey.getW().getAffineY(), 32));
-        return CborUtil.encodeMap(coseKey);
+        return CborUtils.encodeMap(coseKey);
     }
 
     private static ByteArray encodeRsaToCose(RSAPublicKey rsaPublicKey) {
@@ -52,7 +52,7 @@ public class UtilPublicKeyCose {
         coseKey.put(3, -257); // alg: RS256
         coseKey.put(-1, unsignedBytes(rsaPublicKey.getModulus()));
         coseKey.put(-2, unsignedBytes(rsaPublicKey.getPublicExponent()));
-        return CborUtil.encodeMap(coseKey);
+        return CborUtils.encodeMap(coseKey);
     }
 
     private static byte[] unsignedCoordinate(BigInteger coord, int length) {

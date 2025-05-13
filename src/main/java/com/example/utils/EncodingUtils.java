@@ -1,4 +1,4 @@
-package com.example;
+package com.example.utils;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -8,7 +8,7 @@ import java.util.Base64;
 /**
  * Utility class for cryptographic and encoding operations used in FIDO2 simulation.
  */
-public class Util {
+public class EncodingUtils {
 
     /**
      * Computes the SHA-256 hash of the given byte array.
@@ -66,30 +66,6 @@ public class Util {
         return data;
     }
     
-    /**
-     * Attempts to decode a potentially Base64-encoded JSON string. This method will try:
-     * 1. URL-safe Base64 decoding
-     * 2. Standard Base64 decoding
-     * 3. Return the original string if both decode attempts fail
-     *
-     * This is useful for handling WebAuthn data that might be Base64-encoded when passing
-     * between systems or through environments that might interfere with JSON formatting.
-     *
-     * @param potentiallyEncodedJson A string that may be Base64 encoded JSON
-     * @return The decoded JSON string or the original string if not Base64 encoded
-     */
-    public static String tryDecodeBase64Json(String potentiallyEncodedJson) {
-        try {
-            // Try to decode the options JSON as a Base64 URL string
-            return new String(Base64.getUrlDecoder().decode(potentiallyEncodedJson));
-        } catch (Exception e) {
-            try {
-                // Try to decode the options JSON as a standard Base64 string
-                return new String(Base64.getDecoder().decode(potentiallyEncodedJson));
-            } catch (Exception e2) {
-                // If it's not a Base64 string, just return it as is
-                return potentiallyEncodedJson;
-            }
-        }
-    }
+
+
 }

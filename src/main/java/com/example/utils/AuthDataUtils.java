@@ -1,4 +1,4 @@
-package com.example;
+package com.example.utils;
 
 import java.nio.ByteBuffer;
 import java.util.UUID;
@@ -8,7 +8,7 @@ import java.util.Base64;
  * Utility class for decoding WebAuthn authenticator data.
  * The authenticator data structure is defined in the WebAuthn specification.
  */
-public class UtilAuthData {
+public class AuthDataUtils {
 
     /**
      * Decodes the authenticator data and returns a human-readable representation.

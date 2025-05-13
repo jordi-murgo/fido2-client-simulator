@@ -1,4 +1,4 @@
-package com.example;
+package com.example.utils;
 
 import java.security.PublicKey;
 import java.security.KeyFactory;
@@ -8,7 +8,7 @@ import java.util.Base64;
 /**
  * Utility for encoding Java PublicKey to PEM format (X.509 SubjectPublicKeyInfo).
  */
-public class UtilPem {
+public class PemUtils {
     /**
      * Encodes a Java PublicKey to PEM format (X.509 SubjectPublicKeyInfo).
      * @param publicKey The public key to encode
