@@ -5,7 +5,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.util.concurrent.Callable;
 
-import com.example.handlers.CredentialHandler;
+import com.example.handlers.CommandHandler;
 import com.example.handlers.HandlerFactory;
 import com.example.storage.CredentialStore;
 import com.example.storage.KeyStoreManager;
@@ -243,7 +243,7 @@ public class Fido2ClientApp implements Callable<Integer> {
      */
     private String processOperation(String inputJson) {
         try {
-            CredentialHandler handler;
+            CommandHandler handler;
             
             if ("info".equalsIgnoreCase(operation)) {
                 // For info operation, we use the verbose flag to show detailed information

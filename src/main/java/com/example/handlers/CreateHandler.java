@@ -28,7 +28,7 @@ import com.yubico.webauthn.data.PublicKeyCredentialParameters;
 /**
  * Handles the FIDO2 registration (create) operation, simulating an authenticator's credential creation.
  */
-public class CreateHandler extends BaseHandler implements CredentialHandler {
+public class CreateHandler extends BaseHandler implements CommandHandler {
     private static final java.util.logging.Logger logger = java.util.logging.Logger.getLogger(CreateHandler.class.getName());
 
     @Override

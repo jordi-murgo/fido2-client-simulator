@@ -30,7 +30,7 @@ public class HandlerFactory {
      * @return a credential handler for the specified operation
      * @throws IllegalArgumentException if the operation is unknown
      */
-    public CredentialHandler createHandler(String operation, boolean interactive, boolean verbose) {
+    public CommandHandler createHandler(String operation, boolean interactive, boolean verbose) {
         if ("create".equalsIgnoreCase(operation)) {
             return new CreateHandler(credentialStore, jsonMapper);
         } else if ("get".equalsIgnoreCase(operation)) {
@@ -50,7 +50,7 @@ public class HandlerFactory {
      * @return a credential handler for the specified operation
      * @throws IllegalArgumentException if the operation is unknown
      */
-    public CredentialHandler createHandler(String operation, boolean interactive) {
+    public CommandHandler createHandler(String operation, boolean interactive) {
         return createHandler(operation, interactive, false);
     }
 }

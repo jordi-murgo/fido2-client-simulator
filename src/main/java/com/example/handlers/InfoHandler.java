@@ -25,7 +25,7 @@ import java.util.logging.Logger;
  * @author Jordi Murgo
  * @since 1.1
  */
-public class InfoHandler implements CredentialHandler {
+public class InfoHandler implements CommandHandler {
     private static final Logger LOGGER = Logger.getLogger(InfoHandler.class.getName());
     
     private final CredentialStore credentialStore;
@@ -43,9 +43,6 @@ public class InfoHandler implements CredentialHandler {
         this.credentialStore = credentialStore;
         this.jsonMapper = jsonMapper;
         this.verboseOutput = verbose;
-        
-        // El formateo JSON se controla en Fido2ClientApp con el flag --pretty
-        // No forzamos la indentación aquí para permitir que el usuario controle el formato
     }
     
     /**

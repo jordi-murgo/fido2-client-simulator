@@ -23,7 +23,7 @@ import com.yubico.webauthn.data.PublicKeyCredentialRequestOptions;
 /**
  * Handles the FIDO2 authentication (get) operation, simulating an authenticator's credential usage.
  */
-public class GetHandler extends BaseHandler implements CredentialHandler {
+public class GetHandler extends BaseHandler implements CommandHandler {
     @Override
     public String handleRequest(String requestJson) throws Exception {
         return handleGet(requestJson);

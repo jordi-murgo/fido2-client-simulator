@@ -696,8 +696,10 @@ graph TD
     App --> Factory[HandlerFactory]
     Factory --> CreateH[CreateHandler]
     Factory --> GetH[GetHandler]
+    Factory --> InfoH[InfoHandler]
     CreateH --> CredStore[CredentialStore]
     GetH --> CredStore
+    InfoH --> CredStore
     CredStore --> KeyStore[KeyStoreManager]
     KeyStore --> PKCS12[(PKCS12 KeyStore)]
     KeyStore --> MetaData[(JSON Metadata)]
@@ -707,8 +709,12 @@ graph TD
     classDef data fill:#fcf,stroke:#333;
     
     class CredStore interface;
-    class KeyStore,CreateH,GetH,Factory implementation;
+    class KeyStore,CreateH,GetH,InfoH,Factory implementation;
     class PKCS12,MetaData data;
+    class CreateH,GetH,InfoH implements_CommandHandler;
+    
+    %% Note: All handlers now implement CommandHandler interface
+    %% InfoHandler is now shown in the diagram as well.
 ```
 
 ### Implemented Design Patterns
@@ -734,11 +740,13 @@ Implementation of the Factory pattern for creating specific handlers:
 ```java
 public class HandlerFactory {
     // ...
-    public CredentialHandler createHandler(String operation, boolean interactive) {
+    public CommandHandler createHandler(String operation, boolean interactive) {
         if ("create".equalsIgnoreCase(operation)) {
             return new CreateHandler(credentialStore, jsonMapper);
         } else if ("get".equalsIgnoreCase(operation)) {
             return new GetHandler(credentialStore, jsonMapper, interactive);
+        } else if ("info".equalsIgnoreCase(operation)) {
+            return new InfoHandler(credentialStore, jsonMapper, false);
         }
         throw new IllegalArgumentException("Unknown operation: " + operation);
     }
@@ -747,7 +755,7 @@ public class HandlerFactory {
 
 #### 3. Strategy Pattern (Handlers)
 
-The `CreateHandler` and `GetHandler` handlers implement different strategies for processing FIDO2 operations, sharing the common `CredentialHandler` interface.
+The `CreateHandler`, `GetHandler`, and `InfoHandler` handlers implement different strategies for processing FIDO2 operations, sharing the common `CommandHandler` interface.
 
 #### 4. Functional Programming and Optional
 
