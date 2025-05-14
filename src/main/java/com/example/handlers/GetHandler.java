@@ -1,12 +1,18 @@
 package com.example.handlers;
 
+import java.io.BufferedReader;
 import java.io.IOException;
+import java.io.InputStreamReader;
 import java.nio.ByteBuffer;
 import java.security.PrivateKey;
 import java.security.SignatureException;
+import java.text.SimpleDateFormat;
+import java.util.Date;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
-import java.util.Scanner;
+
+import com.example.storage.CredentialMetadata;
 import com.example.storage.CredentialStore;
 import com.example.utils.HashUtils;
 import com.example.utils.SignatureUtils;
@@ -114,18 +120,79 @@ public class GetHandler extends BaseHandler implements CommandHandler {
     }
 
     private ByteArray promptForCredentialSelection(List<ByteArray> credentialIds) {
+        Map<String, CredentialMetadata> metadataMap = credentialStore.getMetadataMap();
+        
         System.out.println("\nAvailable credentials:");
+        // Print header row for the table
+        System.out.println("-----------------------------------------------------------------------------------------");
+        System.out.println("  IDX | CREDENTIAL ID          | CREATION TIMESTAMP  | CNT | USER INFO");
+        System.out.println("-----------------------------------------------------------------------------------------");
+        
         for (int i = 0; i < credentialIds.size(); i++) {
-            System.out.println((i + 1) + ": " + credentialIds.get(i).getBase64Url());
+            String credId = credentialIds.get(i).getBase64Url();
+            // Get user info from metadata
+            String userInfo = "Unknown user";
+            String createdAt = "N/A";
+            String signCount = "0";
+            
+            if (metadataMap.containsKey(credId)) {
+                CredentialMetadata metadata = metadataMap.get(credId);
+                
+                // Format creation date/time
+                if (metadata.createdAt > 0) {
+                    createdAt = formatDatetime(metadata.createdAt);
+                }
+                
+                // Get sign count
+                if (metadata.user != null && metadata.user.containsKey("signCount")) {
+                    signCount = metadata.user.get("signCount").toString();
+                }
+                
+                // Get user info
+                if (metadata.user != null) {
+                    String userName = metadata.user.containsKey("name") ? 
+                            metadata.user.get("name").toString() : "unknown";
+                    String displayName = metadata.user.containsKey("displayName") ? 
+                            metadata.user.get("displayName").toString() : "";
+                    
+                    userInfo = userName;
+                    if (!displayName.isEmpty() && !displayName.equals(userName)) {
+                        userInfo += " (" + displayName + ")";
+                    }
+                }
+            }
+            
+            // Format the credential ID to ensure consistent width
+            String formattedCredId = credId;
+            if (formattedCredId.length() > 30) {
+                formattedCredId = formattedCredId.substring(0, 30);
+            } else {
+                formattedCredId = String.format("%-13s", formattedCredId);
+            }
+            
+            System.out.println(String.format("  [%d] | %s | %s | %3s | %s", 
+                i+1, formattedCredId, createdAt, signCount, userInfo));
         }
+        System.out.println("-----------------------------------------------------------------------------------------");
         
         System.out.print("Select credential (1-" + credentialIds.size() + "): ");
         int selection = 1; // Default to first credential
         
-        try (Scanner scanner = new Scanner(System.in)) {
-            String input = scanner.nextLine().trim();
-            if (!input.isEmpty()) {
-                selection = Integer.parseInt(input);
+        try {
+            // Usar una forma más robusta de leer la entrada que funcione en diversos contextos
+            String input = null;
+            // Intentar usar console primero (funciona bien en terminal interactiva)
+            if (System.console() != null) {
+                input = System.console().readLine();
+            } else {
+                // Fallback a BufferedReader si console no está disponible
+                try (BufferedReader reader = new BufferedReader(new InputStreamReader(System.in))) {
+                    input = reader.readLine();
+                }
+            }
+            
+            if (input != null && !input.trim().isEmpty()) {
+                selection = Integer.parseInt(input.trim());
                 if (selection < 1 || selection > credentialIds.size()) {
                     System.out.println("Invalid selection, using first credential.");
                     selection = 1;
@@ -135,6 +202,8 @@ public class GetHandler extends BaseHandler implements CommandHandler {
             }
         } catch (NumberFormatException e) {
             System.out.println("Invalid input, using first credential.");
+        } catch (IOException e) {
+            System.out.println("Error reading input: " + e.getMessage() + ", using first credential.");
         }
         
         ByteArray selectedCredential = credentialIds.get(selection - 1);
@@ -221,5 +290,16 @@ public class GetHandler extends BaseHandler implements CommandHandler {
         System.arraycopy(signCountBytes, 0, out, 33, 4);
         
         return out;
+    }
+    
+    /**
+     * Formats a Unix timestamp (in milliseconds) to a human-readable date format yyyy-MM-dd HH:mm
+     * 
+     * @param timestamp The Unix timestamp in milliseconds
+     * @return Formatted date string
+     */
+    private String formatDatetime(long timestamp) {
+        SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+        return sdf.format(new Date(timestamp));
     }
 }
