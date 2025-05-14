@@ -11,6 +11,7 @@ import java.util.Date;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 import com.example.storage.CredentialMetadata;
 import com.example.storage.CredentialStore;
@@ -85,7 +86,7 @@ public class GetHandler extends BaseHandler implements CommandHandler {
             PublicKeyCredential<AuthenticatorAssertionResponse, ClientAssertionExtensionOutputs> credential = createCredential(credentialId, response);
             
             // 8. Convert to JSON and add rawId
-            String assertionResponseJson = jsonMapper.writerWithDefaultPrettyPrinter().writeValueAsString(credential);
+            String assertionResponseJson = jsonMapper.writeValueAsString(credential);
             return addRawIdToResponse(assertionResponseJson);
         } catch (IOException | SignatureException e) {
             throw new Exception("Error during authentication: " + e.getMessage(), e);
@@ -100,7 +101,7 @@ public class GetHandler extends BaseHandler implements CommandHandler {
         List<ByteArray> matchingCredentialIds = availableCredentialIds.stream()
             .filter(id -> allowedCredentials.isEmpty() || 
                    allowedCredentials.stream().anyMatch(cred -> cred.getId().equals(id)))
-            .toList();
+            .collect(Collectors.toList());
         
         if (matchingCredentialIds.isEmpty()) {
             throw new IllegalStateException("No matching credentials found");

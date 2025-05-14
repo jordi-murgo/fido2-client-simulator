@@ -94,7 +94,7 @@ public class CreateHandler extends BaseHandler implements CommandHandler {
             credentialNode.set("response", responseNode);
             
             // Crear JSON de respuesta
-            String registrationResponseJson = jsonMapper.writerWithDefaultPrettyPrinter().writeValueAsString(credentialNode);
+            String registrationResponseJson = jsonMapper.writeValueAsString(credentialNode);
             
             // 8. Log attestation object details
             logAttestationObject(registrationResponseJson);

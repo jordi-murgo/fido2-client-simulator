@@ -12,6 +12,7 @@ import com.example.storage.KeyStoreManager;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.datatype.jdk8.Jdk8Module;
@@ -98,7 +99,7 @@ public class Fido2ClientApp implements Callable<Integer> {
             this.credentialStore = new KeyStoreManager();
             this.jsonMapper = new ObjectMapper()
                     .registerModule(new Jdk8Module())
-                    .configure(SerializationFeature.INDENT_OUTPUT, true); // Enable pretty printing by default
+                    .setSerializationInclusion(JsonInclude.Include.NON_NULL); // Exclude null values
             this.handlerFactory = new HandlerFactory(credentialStore, jsonMapper);
         } catch (Exception e) {
             System.err.println("ERROR: Failed to initialize the FIDO2 client: " + e.getMessage());
@@ -134,6 +135,8 @@ public class Fido2ClientApp implements Callable<Integer> {
         
         // Apply JSON formatting based on options
         jsonMapper.configure(SerializationFeature.INDENT_OUTPUT, prettyPrint);
+        // Exclude null values
+        jsonMapper.setSerializationInclusion(JsonInclude.Include.NON_NULL);
         
         // For info operation, input JSON is optional
         String inputJson = null;
@@ -151,21 +154,7 @@ public class Fido2ClientApp implements Callable<Integer> {
             if (outputJson == null) {
                 return 1; // Error already reported
             }
-            
-            // Format the output if needed
-            if (prettyPrint && !outputJson.trim().startsWith("{")) {
-                // Only try to pretty-print if it's not already formatted and looks like JSON
-                try {
-                    Object json = jsonMapper.readValue(outputJson, Object.class);
-                    outputJson = jsonMapper.writerWithDefaultPrettyPrinter().writeValueAsString(json);
-                } catch (Exception e) {
-                    // If pretty printing fails, just use the original output
-                    if (verbose && !jsonOnly) {
-                        logger.debug("Failed to pretty-print JSON output", e);
-                    }
-                }
-            }
-            
+
             // Save to file if requested
             if (outputFile != null) {
                 try {
@@ -243,42 +232,8 @@ public class Fido2ClientApp implements Callable<Integer> {
      */
     private String processOperation(String inputJson) {
         try {
-            CommandHandler handler;
-            
-            if ("info".equalsIgnoreCase(operation)) {
-                // For info operation, we use the verbose flag to show detailed information
-                handler = handlerFactory.createHandler(operation, interactive, verbose);
-                
-                // Info operation doesn't require input JSON usually, but we'll pass empty string to be consistent
-                String result = handler.handleRequest(inputJson != null ? inputJson : "{}");
-                if (!jsonOnly && verbose) {
-                    logger.info("Info operation successful.");
-                }
-                return result;
-            } else {
-                // For create and get operations
-                handler = handlerFactory.createHandler(operation, interactive);
-                
-                if ("create".equalsIgnoreCase(operation)) {
-                    String result = handler.handleRequest(inputJson);
-                    if (!jsonOnly && verbose) {
-                        logger.info("Create operation successful.");
-                    }
-                    return result;
-                } else if ("get".equalsIgnoreCase(operation)) {
-                    if (interactive && verbose && !jsonOnly) {
-                        logger.debug("Running in interactive mode");
-                    }
-                    String result = handler.handleRequest(inputJson);
-                    if (!jsonOnly && verbose) {
-                        logger.info("Get operation successful.");
-                    }
-                    return result;
-                } else {
-                    reportError("Invalid operation: " + operation + ". Must be 'create', 'get', or 'info'.", null);
-                    return null;
-                }
-            }
+            CommandHandler handler = handlerFactory.createHandler(operation, interactive, verbose);
+            return handler.handleRequest(inputJson != null ? inputJson : "{}");
         } catch (Exception e) {
             String errorMessage = e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName();
             reportError("Error processing operation: " + errorMessage, e);

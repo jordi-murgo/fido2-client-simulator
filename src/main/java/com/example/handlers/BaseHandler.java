@@ -1,6 +1,6 @@
 package com.example.handlers;
 
-import java.util.Base64;
+import java.util.*;
 
 import com.example.storage.CredentialStore;
 import com.fasterxml.jackson.annotation.JsonInclude;
@@ -47,7 +47,9 @@ public abstract class BaseHandler {
             // En lugar de usar deepCopy(), parseamos el JSON a un nuevo ObjectNode
             JsonNode tree = jsonMapper.readTree(jsonResponse);
             ObjectNode responseNode = jsonMapper.createObjectNode();
-            
+
+            // Eliminamos todos los campos con null
+            removeNullFields(tree);
             // Copiamos manualmente todos los campos
             tree.fieldNames().forEachRemaining(fieldName -> {
                 responseNode.set(fieldName, tree.get(fieldName));
@@ -57,11 +59,43 @@ public abstract class BaseHandler {
             if (responseNode.has("id") && !responseNode.has("rawId")) {
                 responseNode.put("rawId", responseNode.get("id").asText());
             }
-            
+
             return jsonMapper.writeValueAsString(responseNode);
         } catch (Exception e) {
             // Si hay algún error, devolvemos el JSON original
             return jsonResponse;
+        }
+    }
+
+    /**
+     * Recursively removes all fields with null values from the given JSON node.
+     *
+     * @param node The root JSON node to process. It can be an ObjectNode or an ArrayNode.
+     */
+    public void removeNullFields(JsonNode node) {
+        if (node instanceof ObjectNode) {
+            ObjectNode objectNode = (ObjectNode) node;
+            List<String> fieldsToRemove = new ArrayList<>();
+            Iterator<Map.Entry<String, JsonNode>> fields = objectNode.fields();
+
+            while (fields.hasNext()) {
+                Map.Entry<String, JsonNode> entry = fields.next();
+                JsonNode child = entry.getValue();
+                if (child.isNull()) {
+                    fieldsToRemove.add(entry.getKey());
+                } else {
+                    removeNullFields(child);
+                }
+            }
+
+            for (String field : fieldsToRemove) {
+                objectNode.remove(field);
+            }
+
+        } else if (node.isArray()) {
+            for (JsonNode item : node) {
+                removeNullFields(item);
+            }
         }
     }
 
