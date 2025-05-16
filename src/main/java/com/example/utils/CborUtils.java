@@ -38,16 +38,8 @@ public final class CborUtils {
             Object key = entry.getKey();
             Object value = entry.getValue();
             
-            CBORObject cborKey;
-            if (key instanceof Integer) {
-                cborKey = CBORObject.FromInt32((Integer) key);
-            } else if (key instanceof String) {
-                cborKey = CBORObject.FromObject((String) key);
-            } else {
-                throw new IllegalArgumentException("Unsupported key type: " + 
-                    (key != null ? key.getClass().getName() : "null"));
-            }
-            
+            CBORObject cborKey = CBORObject.FromObject(key);
+                        
             try {
                 CBORObject cborValue = CBORObject.FromObject(value);
                 cborMap.Add(cborKey, cborValue);
