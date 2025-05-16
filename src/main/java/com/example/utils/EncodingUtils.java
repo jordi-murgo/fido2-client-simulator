@@ -20,6 +20,15 @@ public class EncodingUtils {
     }
 
     /**
+     * Encodes the given byte array as Base64 (no padding).
+     * @param data the input bytes
+     * @return the Base64-encoded string
+     */
+    public static String base64Encode(byte[] data) {
+        return Base64.getEncoder().withoutPadding().encodeToString(data);
+    }
+
+    /**
      * Decodes a Base64URL-encoded string to bytes.
      * @param data the Base64URL string
      * @return the decoded bytes
@@ -27,6 +36,16 @@ public class EncodingUtils {
     public static byte[] base64UrlDecode(String data) {
         return Base64.getUrlDecoder().decode(data);
     }
+
+    /**
+     * Decodes a Base64-encoded string to bytes.
+     * @param data the Base64 string
+     * @return the decoded bytes
+     */
+    public static byte[] base64Decode(String data) {
+        return Base64.getDecoder().decode(data);
+    }
+
 
     /**
      * Converts a hexadecimal string to a byte array.
