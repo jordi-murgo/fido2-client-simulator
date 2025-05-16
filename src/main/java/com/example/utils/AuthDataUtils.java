@@ -2,7 +2,6 @@ package com.example.utils;
 
 import java.nio.ByteBuffer;
 import java.util.UUID;
-import java.util.Base64;
 
 /**
  * Utility class for decoding WebAuthn authenticator data.
@@ -63,7 +62,7 @@ public class AuthDataUtils {
             if (authData.length >= 55 + credentialIdLength) {
                 byte[] credentialId = new byte[credentialIdLength];
                 System.arraycopy(authData, 55, credentialId, 0, credentialIdLength);
-                sb.append("credentialId: ").append(Base64.getUrlEncoder().withoutPadding().encodeToString(credentialId)).append("\n");
+                sb.append("credentialId: ").append(EncodingUtils.base64UrlEncode(credentialId)).append("\n");
                 
                 // The rest is CBOR-encoded public key
                 int publicKeyOffset = 55 + credentialIdLength;

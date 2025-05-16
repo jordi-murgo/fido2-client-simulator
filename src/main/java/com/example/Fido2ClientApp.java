@@ -4,31 +4,26 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.util.concurrent.Callable;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 import com.example.config.CommandOptions;
 import com.example.handlers.CommandHandler;
 import com.example.handlers.HandlerFactory;
 import com.example.storage.CredentialStore;
 import com.example.storage.KeyStoreManager;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.datatype.jdk8.Jdk8Module;
 
+import lombok.extern.slf4j.Slf4j;
 import picocli.CommandLine;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
 import picocli.CommandLine.Parameters;
 
-/**
- * Main CLI entrypoint for the FIDO2 client simulator.
- * Supports 'create', 'get', and 'info' operations via Picocli.
- */
-@Command(name = "fido2-client", mixinStandardHelpOptions = true, version = "FIDO2 Client Simulator 1.1",
-        description = "Simulates FIDO2 client operations (create/get/info).")
 /**
  * Main entry point for the FIDO2 Client Simulator application.
  * <p>
@@ -59,8 +54,10 @@ import picocli.CommandLine.Parameters;
  * @author jpmo
  * @since 2025-05-09
  */
+@Command(name = "fido2-client", mixinStandardHelpOptions = true, version = "FIDO2 Client Simulator 1.1",
+        description = "Simulates FIDO2 client operations (create/get/info).")
+@Slf4j
 public class Fido2ClientApp implements Callable<Integer> {
-    private static final Logger logger = LoggerFactory.getLogger(Fido2ClientApp.class);
 
     private final CommandOptions options = new CommandOptions();
     private CredentialStore credentialStore;
@@ -153,10 +150,11 @@ public class Fido2ClientApp implements Callable<Integer> {
     @Override
     public Integer call() throws Exception {
         // Configure logging based on options
+        Logger rootLogger = Logger.getLogger(this.getClass().getName());
         if (options.isVerbose()) {
-            System.setProperty("org.slf4j.simpleLogger.defaultLogLevel", "DEBUG");
+            rootLogger.setLevel(Level.FINE);
         } else {
-            System.setProperty("org.slf4j.simpleLogger.defaultLogLevel", "INFO");
+            rootLogger.setLevel(Level.INFO);
         }
         
         // Apply JSON formatting based on options
@@ -192,7 +190,7 @@ public class Fido2ClientApp implements Callable<Integer> {
                     
                     Files.write(outputFile.toPath(), outputJson.getBytes());
                     if (!options.isJsonOnly()) {
-                        logger.info("Output saved to: " + outputFile.getAbsolutePath());
+                        log.info("Output saved to: {}", outputFile.getAbsolutePath());
                     }
                 } catch (IOException e) {
                     reportError("Failed to write output to file: " + e.getMessage(), e);
@@ -278,7 +276,7 @@ public class Fido2ClientApp implements Callable<Integer> {
         if (!options.isJsonOnly()) {
             System.err.println("ERROR: " + message);
             if (e != null && options.isVerbose()) {
-                logger.debug("Stack trace:", e);
+                log.debug("Stack trace:", e);
             }
         } else {
             // In JSON-only mode, output a JSON error object

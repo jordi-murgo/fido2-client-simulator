@@ -15,6 +15,7 @@ import com.example.utils.HashUtils;
 import com.example.utils.AuthDataUtils;
 import com.example.utils.PemUtils;
 import com.example.utils.CoseKeyUtils;
+import com.example.utils.EncodingUtils;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -27,11 +28,13 @@ import com.yubico.webauthn.data.PublicKeyCredential;
 import com.yubico.webauthn.data.PublicKeyCredentialCreationOptions;
 import com.yubico.webauthn.data.PublicKeyCredentialParameters;
 
+import lombok.extern.slf4j.Slf4j;
+
 /**
  * Handles the FIDO2 registration (create) operation, simulating an authenticator's credential creation.
  */
+@Slf4j
 public class CreateHandler extends BaseHandler implements CommandHandler {
-    private static final java.util.logging.Logger logger = java.util.logging.Logger.getLogger(CreateHandler.class.getName());
 
     /**
      * Handles the incoming request, supporting an optional format parameter for output style.
@@ -269,20 +272,22 @@ public class CreateHandler extends BaseHandler implements CommandHandler {
             com.fasterxml.jackson.databind.ObjectMapper cborReader = new com.fasterxml.jackson.databind.ObjectMapper(cborFactory);
             com.fasterxml.jackson.databind.JsonNode cborData = cborReader.readTree(attestationBytes);
             
-            System.out.println("=== AttestationObject (decoded) ===");
-            System.out.println("fmt: " + cborData.get("fmt"));
-            
-            byte[] rawAuthData = cborData.get("authData").binaryValue();
-            System.out.println("authData (base64): " + java.util.Base64.getEncoder().encodeToString(rawAuthData));
-            
-            System.out.println("\n--- AuthData Structure ---");
-            System.out.println(AuthDataUtils.decodeAuthData(rawAuthData));
-            System.out.println("------------------------");
-            
-            System.out.println("attStmt: " + cborData.get("attStmt"));
-            System.out.println("==============================");
+            log.debug("\n" +
+                "=== AttestationObject (decoded) ===\n" +
+                "fmt: {}\n" +
+                "authData (b64Url): {}\n\n" +
+                "----- AuthData Structure -----\n" +
+                "{}\n" +
+                "------------------------------\n" +
+                "attStmt: {}\n" +
+                "===================================",
+                cborData.get("fmt").asText(),
+                EncodingUtils.base64UrlEncode(cborData.get("authData").binaryValue()),
+                AuthDataUtils.decodeAuthData(cborData.get("authData").binaryValue()),
+                cborData.get("attStmt"));
+
         } catch (Exception e) {
-            System.out.println("[WARN] Could not decode attestationObject: " + e.getMessage());
+            log.warn("Could not decode attestationObject: {}", e.getMessage());
         }
     }
 

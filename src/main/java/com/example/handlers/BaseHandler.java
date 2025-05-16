@@ -4,6 +4,7 @@ import java.util.*;
 
 import com.example.config.CommandOptions;
 import com.example.storage.CredentialStore;
+import com.example.utils.EncodingUtils;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -161,11 +162,11 @@ public abstract class BaseHandler {
     public static String tryDecodeBase64Json(String potentiallyEncodedJson) {
         try {
             // Try to decode the options JSON as a Base64 URL string
-            return new String(Base64.getUrlDecoder().decode(potentiallyEncodedJson));
+            return new String(EncodingUtils.base64UrlDecode(potentiallyEncodedJson));
         } catch (Exception e) {
             try {
                 // Try to decode the options JSON as a standard Base64 string
-                return new String(Base64.getDecoder().decode(potentiallyEncodedJson));
+                return new String(EncodingUtils.base64Decode(potentiallyEncodedJson));
             } catch (Exception e2) {
                 // If it's not a Base64 string, just return it as is
                 return potentiallyEncodedJson;

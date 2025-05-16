@@ -8,13 +8,13 @@ import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.yubico.webauthn.data.ByteArray;
 
+import lombok.extern.slf4j.Slf4j;
+
 import java.io.File;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.Map;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 
 /**
  * Handler for displaying keystore and metadata information.
@@ -26,8 +26,8 @@ import java.util.logging.Logger;
  * @author Jordi Murgo
  * @since 1.1
  */
+@Slf4j
 public class InfoHandler extends BaseHandler implements CommandHandler {
-    private static final Logger LOGGER = Logger.getLogger(InfoHandler.class.getName());
     
     // Los campos credentialStore y jsonMapper ya están definidos en BaseHandler
     /**
@@ -50,7 +50,7 @@ public class InfoHandler extends BaseHandler implements CommandHandler {
      */
     @Override
     public String handleRequest(String requestJson) throws Exception {
-        LOGGER.log(Level.INFO, "Processing info request for credential store content");
+        log.info("Processing info request for credential store content");
         
         // Create the root JSON object for our response
         ObjectNode rootNode = jsonMapper.createObjectNode();
@@ -124,7 +124,7 @@ public class InfoHandler extends BaseHandler implements CommandHandler {
                         credentialNode.put("publicKeyStatus", "Not found in keystore");
                     }
                 } catch (Exception e) {
-                    LOGGER.log(Level.WARNING, "Error checking credential " + credentialId, e);
+                    log.warn("Error checking credential " + credentialId, e);
                     credentialNode.put("publicKeyStatus", "Error: " + e.getMessage());
                 }
             }
@@ -177,7 +177,7 @@ public class InfoHandler extends BaseHandler implements CommandHandler {
                 systemNode.put("userHome", System.getProperty("user.home"));
                 systemNode.put("currentTime", formatTimestamp(System.currentTimeMillis()));
             } catch (Exception e) {
-                LOGGER.log(Level.FINE, "Could not add detailed configuration information", e);
+                log.warn("Could not add detailed configuration information", e);
                 configNode.put("error", "Error gathering configuration details: " + e.getMessage());
             }
         }

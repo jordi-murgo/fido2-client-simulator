@@ -5,6 +5,8 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.yubico.webauthn.data.ByteArray;
 
+import lombok.extern.slf4j.Slf4j;
+
 /**
  * Utility for formatting binary fields in FIDO2/WebAuthn responses to support multiple output styles.
  * Supports: base64url, base64, bytes (Int8 array)
@@ -13,6 +15,7 @@ import com.yubico.webauthn.data.ByteArray;
  *   ResponseFormatter formatter = new ResponseFormatter("chrome", jsonMapper);
  *   credentialNode.set("id", formatter.formatBinary(credentialId.getBytes(), "id"));
  */
+@Slf4j
 public class ResponseFormatter {
     public enum Format {
         BASE64URL, // base64url (Default JSON.stringify of WebAuthn PublicKeyCredential)
@@ -57,6 +60,7 @@ public class ResponseFormatter {
      * @return JsonNode representing the field in the chosen format
      */
     public JsonNode formatBinary(byte[] bytes, String fieldName) {
+        log.info("formatBinary: fieldName={}, format={}, bytes.length={}", fieldName, format, bytes.length);
         switch (format) {
             case BYTES:
                 return jsonMapper.valueToTree(bytes);

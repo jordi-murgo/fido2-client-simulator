@@ -7,8 +7,8 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Properties;
-import java.util.logging.Level;
-import java.util.logging.Logger;
+
+import lombok.extern.slf4j.Slf4j;
 
 /**
  * Configuration manager for the FIDO2 Client Simulator.
@@ -17,8 +17,8 @@ import java.util.logging.Logger;
  * @author Jordi Murgo
  * @since 1.1
  */
+@Slf4j
 public class ConfigurationManager {
-    private static final Logger LOGGER = Logger.getLogger(ConfigurationManager.class.getName());
     
     // Default configuration values
     private static final String DEFAULT_KEYSTORE_PATH = "fido2_keystore.p12";
@@ -63,11 +63,11 @@ public class ConfigurationManager {
             if (Files.exists(configPath)) {
                 try (InputStream input = new FileInputStream(configPath.toFile())) {
                     properties.load(input);
-                    LOGGER.log(Level.INFO, "Configuration loaded from: {0}", configPath);
+                    log.info("Configuration loaded from: {}", configPath);
                     loaded = true;
                     return;
                 } catch (IOException e) {
-                    LOGGER.log(Level.WARNING, "Failed to load configuration from: " + configPath, e);
+                    log.warn("Failed to load configuration from: " + configPath, e);
                 }
             }
         }
@@ -76,16 +76,16 @@ public class ConfigurationManager {
         try (InputStream input = getClass().getClassLoader().getResourceAsStream("fido2_config.properties")) {
             if (input != null) {
                 properties.load(input);
-                LOGGER.log(Level.INFO, "Configuration loaded from classpath");
+                log.info("Configuration loaded from classpath");
                 loaded = true;
                 return;
             }
         } catch (IOException e) {
-            LOGGER.log(Level.WARNING, "Failed to load configuration from classpath", e);
+            log.warn("Failed to load configuration from classpath", e);
         }
         
         // If we get here, no configuration was loaded
-        LOGGER.log(Level.INFO, "No configuration file found, using default values");
+        log.info("No configuration file found, using default values");
     }
     
     /**
@@ -140,7 +140,7 @@ public class ConfigurationManager {
         try {
             return Integer.parseInt(value);
         } catch (NumberFormatException e) {
-            LOGGER.log(Level.WARNING, "Invalid integer property: " + key + "=" + value);
+            log.warn("Invalid integer property: " + key + "=" + value);
             return defaultValue;
         }
     }

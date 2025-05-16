@@ -5,15 +5,12 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
 import java.nio.ByteBuffer;
 import java.security.*;
 import java.security.cert.Certificate;
 import java.security.cert.CertificateException;
 import java.security.cert.CertificateFactory;
 import java.security.spec.ECGenParameterSpec;
-import java.util.Base64;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -21,17 +18,16 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
 import java.util.Optional;
-import java.util.logging.Logger;
-import java.util.logging.Level;
 
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
 
 import com.example.config.ConfigurationManager;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.SerializationFeature;
 import com.yubico.webauthn.data.ByteArray;
 import com.yubico.webauthn.data.COSEAlgorithmIdentifier;
+
+import lombok.extern.slf4j.Slf4j;
 
 /**
  * Manages the Java KeyStore (JKS) for FIDO2 credential key pairs and a separate properties file for credential metadata.
@@ -48,13 +44,11 @@ import com.yubico.webauthn.data.COSEAlgorithmIdentifier;
  * @author Jordi Murgo
  * @since 1.0
  */
+@Slf4j
 public class KeyStoreManager implements CredentialStore {
     static {
         Security.addProvider(new BouncyCastleProvider());
     }
-    
-    /** Logger for this class */
-    private static final Logger LOGGER = Logger.getLogger(KeyStoreManager.class.getName());
     
     private final ConfigurationManager config = ConfigurationManager.getInstance();
     private final String keystorePath;
@@ -137,7 +131,7 @@ public class KeyStoreManager implements CredentialStore {
         metadataPath = config.getMetadataPath();
         keystorePassword = config.getKeystorePassword();
         
-        LOGGER.log(Level.INFO, "Initializing KeyStoreManager with keystore path: {0}, metadata path: {1}", 
+        log.info("Initializing KeyStoreManager with keystore path: {}, metadata path: {}", 
                   new Object[]{keystorePath, metadataPath});
         
         // Initialize the KeyStore
@@ -148,17 +142,17 @@ public class KeyStoreManager implements CredentialStore {
         if (keystoreFile.exists()) {
             try (FileInputStream fis = new FileInputStream(keystoreFile)) {
                 keyStore.load(fis, keystorePassword.toCharArray());
-                LOGGER.log(Level.INFO, "Loaded existing keystore from: {0}", keystorePath);
+                log.info("Loaded existing keystore from: {}", keystorePath);
             }
         } else {
             // Create an empty keystore
             keyStore.load(null, keystorePassword.toCharArray());
-            LOGGER.log(Level.INFO, "Created new empty keystore");
+            log.info("Created new empty keystore");
         }
         try {
             loadMetadata();
         } catch (Exception e) {
-            LOGGER.log(Level.SEVERE, "Error loading metadata", e);
+            log.error("Error loading metadata", e);
             metadataMap = new HashMap<>();
         }
     }
@@ -176,7 +170,7 @@ public class KeyStoreManager implements CredentialStore {
         ObjectMapper mapper = new ObjectMapper();
         mapper.enable(com.fasterxml.jackson.databind.SerializationFeature.INDENT_OUTPUT); // Pretty print
         mapper.writeValue(metadataFile, metadataMap);
-        LOGGER.log(Level.FINE, "Metadata saved to: {0}", metadataPath);
+        log.info("Metadata saved to: {}", metadataPath);
     }
 
     /**
@@ -197,15 +191,15 @@ public class KeyStoreManager implements CredentialStore {
                 }
                 // Actualizar la fecha de última modificación desde el archivo
                 lastMetadataUpdate = metadataFile.lastModified();
-                LOGGER.log(Level.INFO, "Loaded metadata from: {0}, found {1} credentials",
+                log.info("Loaded metadata from: {}, found {} credentials",
                         new Object[]{metadataPath, metadataMap.size()});
             } catch (IOException e) {
-                LOGGER.log(Level.SEVERE, "Failed to load metadata from: " + metadataPath, e);
+                log.error("Failed to load metadata from: " + metadataPath, e);
                 // Continue with empty metadata if file is corrupted
                 metadataMap.clear();
             }
         } else {
-            LOGGER.log(Level.INFO, "No metadata file found, will create: {0}", metadataPath);
+            log.info("No metadata file found, will create: {}", metadataPath);
         }
     }
 
@@ -233,7 +227,7 @@ public class KeyStoreManager implements CredentialStore {
         try (FileOutputStream fos = new FileOutputStream(keystorePath)) {
             keyStore.store(fos, keystorePassword.toCharArray());
             lastKeystoreUpdate = System.currentTimeMillis();
-            LOGGER.log(Level.FINE, "Keystore saved to: {0}", keystorePath);
+            log.info("Keystore saved to: {}", keystorePath);
         }
     }
 
@@ -257,7 +251,7 @@ public class KeyStoreManager implements CredentialStore {
         Objects.requireNonNull(alg, "Algorithm cannot be null");
         
         final String alias = credentialId.getBase64Url();
-        LOGGER.log(Level.INFO, () -> "Generating key pair for credential: " + alias + " with algorithm: " + alg);
+        log.info("Generating key pair for credential: " + alias + " with algorithm: " + alg);
         
         // Key pair generation using Factory Method pattern
         final KeyPair keyPair = createKeyPairForAlgorithm(alg);
@@ -283,11 +277,10 @@ public class KeyStoreManager implements CredentialStore {
             
             metadataMap.put(alias, meta);
             saveMetadata();
-            
-            LOGGER.log(Level.INFO, () -> "Key pair successfully generated and stored for: " + alias);
+            log.info("Key pair successfully generated and stored for: " + alias);
             return keyPair;
         } catch (Exception e) {
-            LOGGER.log(Level.SEVERE, "Error storing key pair", e);
+            log.error("Error storing key pair", e);
             throw new KeyStoreException("Error storing key pair: " + e.getMessage(), e);
         }
     }
@@ -413,7 +406,7 @@ public class KeyStoreManager implements CredentialStore {
         return Optional.ofNullable(cert)
                 .map(Certificate::getPublicKey)
                 .map(key -> {
-                    LOGGER.log(Level.FINE, () -> "Public key retrieved for credential: " + alias);
+                    log.info("Public key retrieved for credential: " + alias);
                     return key;
                 });
     }
@@ -522,7 +515,7 @@ public class KeyStoreManager implements CredentialStore {
     public static ByteArray generateRandomCredentialId() {
         // Generate a UUID v4 (completely random)
         final UUID uuid = UUID.randomUUID();
-        LOGGER.log(Level.FINE, "Generating credential ID based on UUID: {0}", uuid);
+        log.info("Generating credential ID based on UUID: ", uuid);
         
         // Transform to ByteArray using ByteBuffer (fluent approach)
         return new ByteArray(

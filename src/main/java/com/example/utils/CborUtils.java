@@ -2,18 +2,18 @@ package com.example.utils;
 
 import java.util.HashMap;
 import java.util.Map;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 
 import com.upokecenter.cbor.CBORObject;
 import com.upokecenter.cbor.CBORType;
 import com.yubico.webauthn.data.ByteArray;
 
+import lombok.extern.slf4j.Slf4j;
+
 /**
  * Utility for encoding and decoding CBOR data for FIDO2/WebAuthn operations.
  */
+@Slf4j
 public final class CborUtils {
-    private static final Logger LOGGER = Logger.getLogger(CborUtils.class.getName());
     
     private CborUtils() {
         // Private constructor to prevent instantiation of utility class
@@ -44,7 +44,7 @@ public final class CborUtils {
                 CBORObject cborValue = CBORObject.FromObject(value);
                 cborMap.Add(cborKey, cborValue);
             } catch (Exception e) {
-                LOGGER.log(Level.WARNING, "Error encoding value of type " + 
+                log.warn("Error encoding value of type " + 
                     (value != null ? value.getClass().getName() : "null"), e);
                 throw new IllegalArgumentException("Failed to encode value: " + e.getMessage(), e);
             }
@@ -107,7 +107,7 @@ public final class CborUtils {
             
             return result;
         } catch (Exception e) {
-            LOGGER.log(Level.SEVERE, "Failed to decode CBOR", e);
+            log.error("Failed to decode CBOR", e);
             throw new IllegalArgumentException("Failed to decode CBOR: " + e.getMessage(), e);
         }
     }

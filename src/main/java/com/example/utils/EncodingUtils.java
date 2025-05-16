@@ -61,4 +61,30 @@ public class EncodingUtils {
         }
         return data;
     }
+
+    /**
+     * Tries to decode a string as Base64URL, then Base64, then hex, then raw bytes.
+     * @param data the string to decode
+     * @return the decoded bytes
+     */
+    public static byte[] magicDecode(String data) {
+        try {
+            return base64UrlDecode(data);
+        } catch (Exception e) {
+            try {
+                return base64Decode(data);
+            } catch (Exception e2) {
+                return data.getBytes();
+            }
+        }
+    }
+
+    /**
+     * Returns the input bytes as-is.
+     * @param data the bytes to return
+     * @return the input bytes
+     */
+    public static byte[] magicDecode(byte[] data) {
+        return data;
+    }
 }

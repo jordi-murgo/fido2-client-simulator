@@ -2,9 +2,7 @@ package com.example.utils;
 
 import java.security.PublicKey;
 import java.security.KeyFactory;
-import java.security.spec.InvalidKeySpecException;
 import java.security.spec.X509EncodedKeySpec;
-import java.util.Base64;
 
 /**
  * Utility for encoding Java PublicKey to PEM format (X.509 SubjectPublicKeyInfo).
@@ -18,7 +16,7 @@ public class PemUtils {
     public static String publicKeyToPem(PublicKey publicKey) {
         StringBuilder sb = new StringBuilder();
         sb.append("-----BEGIN PUBLIC KEY-----\n");
-        sb.append(Base64.getMimeEncoder(64, "\n".getBytes()).encodeToString(publicKey.getEncoded()));
+        sb.append(EncodingUtils.base64Encode(publicKey.getEncoded()));
         sb.append("\n-----END PUBLIC KEY-----\n");
         return sb.toString();
     }
@@ -32,7 +30,7 @@ public class PemUtils {
         String pemClean = pem.replaceAll("-----BEGIN PUBLIC KEY-----", "")
                              .replaceAll("-----END PUBLIC KEY-----", "")
                              .replaceAll("\\s", "");
-        byte[] encoded = Base64.getDecoder().decode(pemClean);
+        byte[] encoded = EncodingUtils.base64Decode(pemClean);
         X509EncodedKeySpec keySpec = new X509EncodedKeySpec(encoded);
         KeyFactory kf = KeyFactory.getInstance("X.509");
         return kf.generatePublic(keySpec);

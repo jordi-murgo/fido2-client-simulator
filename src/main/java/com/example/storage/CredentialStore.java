@@ -1,5 +1,6 @@
 package com.example.storage;
 
+import com.example.utils.EncodingUtils;
 import com.yubico.webauthn.data.ByteArray;
 import com.yubico.webauthn.data.COSEAlgorithmIdentifier;
 import java.io.IOException;
@@ -144,7 +145,7 @@ public interface CredentialStore {
     default Optional<ByteArray> extractCredentialId(CredentialMetadata meta) {
         try {
             return Optional.ofNullable(meta.credentialId)
-                   .map(id -> new ByteArray(java.util.Base64.getUrlDecoder().decode(id)));
+                   .map(id -> new ByteArray(EncodingUtils.base64UrlDecode(id)));
         } catch (Exception e) {
             // Logging silencioso de errores para no interrumpir el flujo de procesamiento
             return Optional.empty();
