@@ -1,5 +1,6 @@
 package com.example.handlers;
 
+import com.example.config.CommandOptions;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
@@ -35,16 +36,14 @@ public class GetHandler extends BaseHandler implements CommandHandler {
     public String handleRequest(String requestJson) throws Exception {
         return handleGet(requestJson);
     }
-    private boolean interactive;
     /**
      * Constructs a GetHandler.
      * @param credentialStore The CredentialStore instance
      * @param jsonMapper The Jackson ObjectMapper
-     * @param interactive Whether to enable interactive credential selection
+     * @param options The command line options
      */
-    public GetHandler(CredentialStore credentialStore, ObjectMapper jsonMapper, String format, boolean interactive) {
-        super(credentialStore, jsonMapper, format);
-        this.interactive = interactive;
+    public GetHandler(CredentialStore credentialStore, ObjectMapper jsonMapper, CommandOptions options) {
+        super(credentialStore, jsonMapper, options);
     }
 
     /**
@@ -93,10 +92,10 @@ public class GetHandler extends BaseHandler implements CommandHandler {
         }
     }
 
-    private ByteArray selectCredential(PublicKeyCredentialRequestOptions options) {
-        Optional<List<PublicKeyCredentialDescriptor>> allowedCredentialsOpt = options.getAllowCredentials();
+    private ByteArray selectCredential(PublicKeyCredentialRequestOptions requestOptions) {
+        Optional<List<PublicKeyCredentialDescriptor>> allowedCredentialsOpt = requestOptions.getAllowCredentials();
         List<PublicKeyCredentialDescriptor> allowedCredentials = allowedCredentialsOpt.orElse(List.of());
-        List<ByteArray> availableCredentialIds = credentialStore.getCredentialIdsForRpId(options.getRpId());
+        List<ByteArray> availableCredentialIds = credentialStore.getCredentialIdsForRpId(requestOptions.getRpId());
         
         List<ByteArray> matchingCredentialIds = availableCredentialIds.stream()
             .filter(id -> allowedCredentials.isEmpty() || 
@@ -107,12 +106,12 @@ public class GetHandler extends BaseHandler implements CommandHandler {
             throw new IllegalStateException("No matching credentials found");
         }
         
-        if (matchingCredentialIds.size() == 1) {
-            return matchingCredentialIds.get(0);
+        if (this.options.isInteractive() && matchingCredentialIds.size() > 1) {
+            return promptForCredentialSelection(matchingCredentialIds);
         }
         
         // If we have multiple credentials but not in interactive mode, just return the first one
-        if (!interactive) {
+        if (!this.options.isInteractive()) {
             System.out.println("Multiple credentials found, automatically selecting the first one (non-interactive mode)");
             return matchingCredentialIds.get(0);
         }
@@ -212,9 +211,9 @@ public class GetHandler extends BaseHandler implements CommandHandler {
         return selectedCredential;
     }
 
-    private byte[] createAuthenticatorData(PublicKeyCredentialRequestOptions options, ByteArray credentialId) throws Exception {
+    private byte[] createAuthenticatorData(PublicKeyCredentialRequestOptions requestOptions, ByteArray credentialId) throws Exception {
         // Get the RP ID hash
-        byte[] rpIdHash = HashUtils.sha256(options.getRpId());
+        byte[] rpIdHash = HashUtils.sha256(requestOptions.getRpId());
         
         // Set the flags (UP=1)
         byte flags = (byte) 0x01; // User Present = true
@@ -226,11 +225,11 @@ public class GetHandler extends BaseHandler implements CommandHandler {
         return composeAuthenticatorData(rpIdHash, flags, signCount);
     }
 
-    private String createClientDataJson(PublicKeyCredentialRequestOptions options) throws JsonProcessingException {
+    private String createClientDataJson(PublicKeyCredentialRequestOptions requestOptions) throws JsonProcessingException {
         ObjectNode clientData = jsonMapper.createObjectNode();
         clientData.put("type", "webauthn.get");
-        clientData.put("challenge", options.getChallenge().getBase64Url());
-        clientData.put("origin", "https://" + options.getRpId());
+        clientData.put("challenge", requestOptions.getChallenge().getBase64Url());
+        clientData.put("origin", "https://" + requestOptions.getRpId());
         return jsonMapper.writeValueAsString(clientData);
     }
 

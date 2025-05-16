@@ -1,5 +1,6 @@
 package com.example.handlers;
 
+import com.example.config.CommandOptions;
 import com.example.storage.CredentialMetadata;
 import com.example.storage.CredentialStore;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -25,24 +26,19 @@ import java.util.logging.Logger;
  * @author Jordi Murgo
  * @since 1.1
  */
-public class InfoHandler implements CommandHandler {
+public class InfoHandler extends BaseHandler implements CommandHandler {
     private static final Logger LOGGER = Logger.getLogger(InfoHandler.class.getName());
     
-    private final CredentialStore credentialStore;
-    private final ObjectMapper jsonMapper;
-    private final boolean verboseOutput;
-    
+    // Los campos credentialStore y jsonMapper ya están definidos en BaseHandler
     /**
      * Creates a new InfoHandler.
      * 
      * @param credentialStore The credential store containing the credentials
      * @param jsonMapper The JSON mapper for formatting output
-     * @param verbose Whether to include verbose details in the output
+     * @param options The command line options
      */
-    public InfoHandler(CredentialStore credentialStore, ObjectMapper jsonMapper, boolean verbose) {
-        this.credentialStore = credentialStore;
-        this.jsonMapper = jsonMapper;
-        this.verboseOutput = verbose;
+    public InfoHandler(CredentialStore credentialStore, ObjectMapper jsonMapper, CommandOptions options) {
+        super(credentialStore, jsonMapper, options);
     }
     
     /**
@@ -112,7 +108,7 @@ public class InfoHandler implements CommandHandler {
             }
             
             // Public key information
-            if (verboseOutput) {
+            if (options.isVerbose()) {
                 try {
                     ByteArray credId = new ByteArray(java.util.Base64.getUrlDecoder().decode(credentialId));
                     boolean hasKey = credentialStore.hasCredential(credId);
@@ -135,7 +131,7 @@ public class InfoHandler implements CommandHandler {
         }
         
         // Add configuration information if verbose
-        if (verboseOutput) {
+        if (options.isVerbose()) {
             ObjectNode configNode = rootNode.putObject("configuration");
             try {
                 // Obtener información detallada de la configuración del almacén de credenciales
@@ -161,7 +157,9 @@ public class InfoHandler implements CommandHandler {
                     filesNode.put("metadataExists", metadataFile.exists());
                     
                     if (keystoreFile.exists()) {
-                        filesNode.put("keystoreSize", keystoreFile.length() + " bytes");
+                        if (options.isVerbose()) {
+                            configNode.put("keystorePath", keystoreFile.getAbsolutePath());
+                        }
                         filesNode.put("keystoreLastModified", formatTimestamp(keystoreFile.lastModified()));
                     }
                     

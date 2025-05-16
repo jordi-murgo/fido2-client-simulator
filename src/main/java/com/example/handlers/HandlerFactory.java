@@ -1,10 +1,11 @@
 package com.example.handlers;
 
+import com.example.config.CommandOptions;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.example.storage.CredentialStore;
 
 /**
- * Factory for creating credential handlers based on the requested operation. and promotes extensibility.
+ * Factory for creating credential handlers based on the requested operation and promotes extensibility.
  * Implements the Factory Method pattern for handler creation.
  */
 public class HandlerFactory {
@@ -25,18 +26,17 @@ public class HandlerFactory {
      * Creates a credential handler for the specified operation.
      * 
      * @param operation the operation to create a handler for (create, get, info)
-     * @param interactive whether to use interactive mode for credential selection
-     * @param verbose whether to include verbose details in the output
+     * @param options the command line options
      * @return a credential handler for the specified operation
      * @throws IllegalArgumentException if the operation is unknown
      */
-    public CommandHandler createHandler(String operation, String format, boolean interactive, boolean verbose) {
+    public CommandHandler createHandler(String operation, CommandOptions options) {
         if ("create".equalsIgnoreCase(operation)) {
-            return new CreateHandler(credentialStore, jsonMapper, format);
+            return new CreateHandler(credentialStore, jsonMapper, options);
         } else if ("get".equalsIgnoreCase(operation)) {
-            return new GetHandler(credentialStore, jsonMapper, format, interactive);
+            return new GetHandler(credentialStore, jsonMapper, options);
         } else if ("info".equalsIgnoreCase(operation)) {
-            return new InfoHandler(credentialStore, jsonMapper, verbose);
+            return new InfoHandler(credentialStore, jsonMapper, options);
         }
         
         throw new IllegalArgumentException("Unknown operation: " + operation);

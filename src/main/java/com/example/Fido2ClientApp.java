@@ -5,6 +5,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.util.concurrent.Callable;
 
+import com.example.config.CommandOptions;
 import com.example.handlers.CommandHandler;
 import com.example.handlers.HandlerFactory;
 import com.example.storage.CredentialStore;
@@ -61,40 +62,64 @@ import picocli.CommandLine.Parameters;
 public class Fido2ClientApp implements Callable<Integer> {
     private static final Logger logger = LoggerFactory.getLogger(Fido2ClientApp.class);
 
+    private final CommandOptions options = new CommandOptions();
     private CredentialStore credentialStore;
     private ObjectMapper jsonMapper;
     private HandlerFactory handlerFactory;
-    // Los handlers se crearán a través de la factory cuando se conozca el valor de interactive
-
+    
+    // Picocli setters for command line options
     @Option(names = {"-i", "--input"}, description = "Path to the JSON input file containing options.")
-    File inputFile;
+    public void setInputFile(File inputFile) {
+        options.setInputFile(inputFile);
+    }
 
     @Option(names = {"--interactive"}, description = "Prompt for credential selection if multiple exist (get only)")
-    boolean interactive = false;
+    public void setInteractive(boolean interactive) {
+        options.setInteractive(interactive);
+    }
 
     @Option(names = {"--json-only"}, description = "Output only the JSON response without any log messages")
-    boolean jsonOnly = false;
+    public void setJsonOnly(boolean jsonOnly) {
+        options.setJsonOnly(jsonOnly);
+    }
     
     @Option(names = {"-o", "--output"}, description = "Path to save the JSON output to a file")
-    File outputFile;
+    public void setOutputFile(File outputFile) {
+        options.setOutputFile(outputFile);
+    }
     
     @Option(names = {"--pretty"}, description = "Format the JSON output with indentation for better readability")
-    boolean prettyPrint = false;
+    public void setPrettyPrint(boolean prettyPrint) {
+        options.setPrettyPrint(prettyPrint);
+    }
     
     @Option(names = {"--verbose"}, description = "Enable verbose output with detailed logging")
-    boolean verbose = false;
+    public void setVerbose(boolean verbose) {
+        options.setVerbose(verbose);
+    }
 
-    /**
-     * Output format for binary fields: standard (base64url), base64, bytes
-     */
     @Option(names = {"--format"}, description = "Output format for binary fields: base64url (default), base64, bytes")
-    String format = "base64url";
+    public void setFormat(String format) {
+        options.setFormat(format);
+    }
 
     @Parameters(index = "0", description = "The operation to perform: 'create', 'get', or 'info'.")
-    private String operation;
+    public void setOperation(String operation) {
+        options.setOperation(operation);
+    }
 
     @Parameters(index = "1", arity = "0..1", description = "JSON string input (alternative to --input).")
-    private String jsonInputString;
+    public void setJsonInputString(String jsonInputString) {
+        options.setJsonInputString(jsonInputString);
+    }
+    
+    /**
+     * Get the command options.
+     * @return The command options
+     */
+    public CommandOptions getOptions() {
+        return options;
+    }
 
     /**
      * Constructs the CLI app and initializes handlers and JSON codecs.
@@ -117,36 +142,31 @@ public class Fido2ClientApp implements Callable<Integer> {
     /**
      * Main execution method for the CLI application.
      * <p>
-     * Handles the requested FIDO2 operation (create/get) and manages errors.
+     * Handles the requested FIDO2 operation (create/get/info) and manages errors.
      * If an error occurs, only a concise message is shown to the user, while the full stack trace
-     * is logged at debug level for developers. This ensures a clean user experience and easier debugging.
+     * is logged at debug level for developers.
      * </p>
      *
-     * @return exit code (0 for success, 1 for error)
-     */
-    /**
-     * Process the input JSON and execute the requested FIDO2 operation.
-     * 
      * @return Exit code (0 for success, 1 for error)
      * @throws Exception If an error occurs during processing
      */
     @Override
     public Integer call() throws Exception {
         // Configure logging based on options
-        if (verbose) {
+        if (options.isVerbose()) {
             System.setProperty("org.slf4j.simpleLogger.defaultLogLevel", "DEBUG");
         } else {
             System.setProperty("org.slf4j.simpleLogger.defaultLogLevel", "INFO");
         }
         
         // Apply JSON formatting based on options
-        jsonMapper.configure(SerializationFeature.INDENT_OUTPUT, prettyPrint);
+        jsonMapper.configure(SerializationFeature.INDENT_OUTPUT, options.isPrettyPrint());
         // Exclude null values
         jsonMapper.setSerializationInclusion(JsonInclude.Include.NON_NULL);
         
         // For info operation, input JSON is optional
         String inputJson = null;
-        if (!"info".equalsIgnoreCase(operation)) {
+        if (!"info".equalsIgnoreCase(options.getOperation())) {
             // Read input JSON for create/get operations
             inputJson = readInputJson();
             if (inputJson == null) {
@@ -162,6 +182,7 @@ public class Fido2ClientApp implements Callable<Integer> {
             }
 
             // Save to file if requested
+            File outputFile = options.getOutputFile();
             if (outputFile != null) {
                 try {
                     // Create parent directories if they don't exist
@@ -170,7 +191,7 @@ public class Fido2ClientApp implements Callable<Integer> {
                     }
                     
                     Files.write(outputFile.toPath(), outputJson.getBytes());
-                    if (!jsonOnly) {
+                    if (!options.isJsonOnly()) {
                         logger.info("Output saved to: " + outputFile.getAbsolutePath());
                     }
                 } catch (IOException e) {
@@ -180,13 +201,13 @@ public class Fido2ClientApp implements Callable<Integer> {
             }
             
             // Print to stdout unless output is only to file
-            if (outputFile == null || verbose) {
+            if (outputFile == null || options.isVerbose()) {
                 System.out.println(outputJson);
             }
             
             return 0; // Success
         } catch (Exception e) {
-            reportError("Error during operation '" + operation + "': " + e.getMessage(), e);
+            reportError("Error during operation '" + options.getOperation() + "': " + e.getMessage(), e);
             return 1;
         }
     }
@@ -198,17 +219,17 @@ public class Fido2ClientApp implements Callable<Integer> {
      */
     private String readInputJson() {
         try {
-            if (inputFile != null) {
-                if (!inputFile.exists()) {
-                    reportError("Input file not found: " + inputFile.getAbsolutePath(), null);
+            if (options.getInputFile() != null) {
+                if (!options.getInputFile().exists()) {
+                    reportError("Input file not found: " + options.getInputFile().getAbsolutePath(), null);
                     return null;
                 }
-                return new String(Files.readAllBytes(inputFile.toPath()));
-            } else if (jsonInputString != null && !jsonInputString.isEmpty()) {
-                return jsonInputString;
+                return new String(Files.readAllBytes(options.getInputFile().toPath()));
+            } else if (options.getJsonInputString() != null && !options.getJsonInputString().isEmpty()) {
+                return options.getJsonInputString();
             } else {
                 // Read from stdin if neither --file nor JSON string is provided
-                if (!jsonOnly) {
+                if (!options.isJsonOnly()) {
                     System.out.println("Reading JSON input from stdin. Press Ctrl+D (Unix) or Ctrl+Z (Windows) to finish:");
                 }
                 StringBuilder sb = new StringBuilder();
@@ -231,15 +252,15 @@ public class Fido2ClientApp implements Callable<Integer> {
     }
     
     /**
-     * Process the operation (create or get) with the provided input JSON.
+     * Process the operation (create, get, or info) with the provided input JSON.
      * 
      * @param inputJson The input JSON string
      * @return The output JSON string, or null if an error occurred
      */
     private String processOperation(String inputJson) {
         try {
-                CommandHandler handler = handlerFactory.createHandler(operation, format, interactive, verbose);
-                return handler.handleRequest(inputJson != null ? inputJson : "{}");
+            CommandHandler handler = handlerFactory.createHandler(options.getOperation(), options);
+            return handler.handleRequest(inputJson != null ? inputJson : "{}");
         } catch (Exception e) {
             String errorMessage = e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName();
             reportError("Error processing operation: " + errorMessage, e);
@@ -254,9 +275,9 @@ public class Fido2ClientApp implements Callable<Integer> {
      * @param e The exception (may be null)
      */
     private void reportError(String message, Exception e) {
-        if (!jsonOnly) {
+        if (!options.isJsonOnly()) {
             System.err.println("ERROR: " + message);
-            if (e != null && verbose) {
+            if (e != null && options.isVerbose()) {
                 logger.debug("Stack trace:", e);
             }
         } else {
@@ -272,7 +293,8 @@ public class Fido2ClientApp implements Callable<Integer> {
      */
     public static void main(String[] args) {
         // Configure the command line with better error handling and help formatting
-        CommandLine cmd = new CommandLine(new Fido2ClientApp())
+        Fido2ClientApp app = new Fido2ClientApp();
+        CommandLine cmd = new CommandLine(app)
                 .setUsageHelpAutoWidth(true)
                 .setCaseInsensitiveEnumValuesAllowed(true)
                 .setExpandAtFiles(true);

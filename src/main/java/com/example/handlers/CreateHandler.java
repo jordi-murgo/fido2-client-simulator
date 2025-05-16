@@ -1,5 +1,6 @@
 package com.example.handlers;
 
+import com.example.config.CommandOptions;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.security.KeyPair;
@@ -50,9 +51,10 @@ public class CreateHandler extends BaseHandler implements CommandHandler {
      * Constructs a CreateHandler.
      * @param credentialStore The CredentialStore instance
      * @param jsonMapper The Jackson ObjectMapper
+     * @param options The command line options
      */
-    public CreateHandler(CredentialStore credentialStore, ObjectMapper jsonMapper, String format) {
-        super(credentialStore, jsonMapper, format);
+    public CreateHandler(CredentialStore credentialStore, ObjectMapper jsonMapper, CommandOptions options) {
+        super(credentialStore, jsonMapper, options);
     }
 
     /**
@@ -84,7 +86,7 @@ public class CreateHandler extends BaseHandler implements CommandHandler {
             AuthenticatorAttestationResponse response = createAttestationResponse(attestationObject, clientDataJson);
 
             // --- FORMATTER: Select output style for binary fields (standard, base64, bytes, chrome) ---
-            ResponseFormatter formatter = new ResponseFormatter(format != null ? format : "standard", jsonMapper);
+            ResponseFormatter formatter = new ResponseFormatter(this.options.getFormat(), jsonMapper);
 
             // Create response node with all expected fields (WebAuthn spec)
             ObjectNode credentialNode = jsonMapper.createObjectNode();

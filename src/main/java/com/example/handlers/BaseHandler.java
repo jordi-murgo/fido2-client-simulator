@@ -2,6 +2,7 @@ package com.example.handlers;
 
 import java.util.*;
 
+import com.example.config.CommandOptions;
 import com.example.storage.CredentialStore;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -17,17 +18,18 @@ import com.yubico.webauthn.data.PublicKeyCredentialRequestOptions;
 public abstract class BaseHandler {
     protected final CredentialStore credentialStore;
     protected final ObjectMapper jsonMapper;
-    protected final String format;
+    protected final CommandOptions options;
     
     /**
      * Constructs a BaseHandler.
      * @param credentialStore The CredentialStore instance
      * @param jsonMapper The Jackson ObjectMapper
+     * @param options The command line options
      */
-    public BaseHandler(CredentialStore credentialStore, ObjectMapper jsonMapper, String format) {
+    public BaseHandler(CredentialStore credentialStore, ObjectMapper jsonMapper, CommandOptions options) {
         this.credentialStore = credentialStore;
         this.jsonMapper = jsonMapper;
-        this.format = format;
+        this.options = options;
         configureObjectMapper();
     }
     
