@@ -42,8 +42,8 @@ public class GetHandler extends BaseHandler implements CommandHandler {
      * @param jsonMapper The Jackson ObjectMapper
      * @param interactive Whether to enable interactive credential selection
      */
-    public GetHandler(CredentialStore credentialStore, ObjectMapper jsonMapper, boolean interactive) {
-        super(credentialStore, jsonMapper);
+    public GetHandler(CredentialStore credentialStore, ObjectMapper jsonMapper, String format, boolean interactive) {
+        super(credentialStore, jsonMapper, format);
         this.interactive = interactive;
     }
 

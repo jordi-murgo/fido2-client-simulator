@@ -16,6 +16,7 @@ import com.example.utils.PemUtils;
 import com.example.utils.CoseKeyUtils;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.yubico.webauthn.data.AuthenticatorAttestationResponse;
 import com.yubico.webauthn.data.ByteArray;
@@ -31,8 +32,15 @@ import com.yubico.webauthn.data.PublicKeyCredentialParameters;
 public class CreateHandler extends BaseHandler implements CommandHandler {
     private static final java.util.logging.Logger logger = java.util.logging.Logger.getLogger(CreateHandler.class.getName());
 
+    /**
+     * Handles the incoming request, supporting an optional format parameter for output style.
+     * @param requestJson The JSON string with creation options
+     * @return The JSON response
+     * @throws Exception on error
+     */
     @Override
     public String handleRequest(String requestJson) throws Exception {
+        // Default to standard format if not provided
         return handleCreate(requestJson);
     }
 
@@ -40,16 +48,11 @@ public class CreateHandler extends BaseHandler implements CommandHandler {
 
     /**
      * Constructs a CreateHandler.
-     * @param credentialStore The KeyStoreManager instance
-     * @param jsonMapper The Jackson ObjectMapper
-     */
-    /**
-     * Constructs a CreateHandler.
      * @param credentialStore The CredentialStore instance
      * @param jsonMapper The Jackson ObjectMapper
      */
-    public CreateHandler(CredentialStore credentialStore, ObjectMapper jsonMapper) {
-        super(credentialStore, jsonMapper);
+    public CreateHandler(CredentialStore credentialStore, ObjectMapper jsonMapper, String format) {
+        super(credentialStore, jsonMapper, format);
     }
 
     /**
@@ -70,29 +73,76 @@ public class CreateHandler extends BaseHandler implements CommandHandler {
             // 2. Generate credential ID and key pair
             ByteArray credentialId = KeyStoreManager.generateRandomCredentialId();
             KeyPair keyPair = credentialStore.generateAndStoreKeyPair(credentialId, options.getUser().getId(), selectedAlg);
-            
+
             // 3. Create attestation object
             byte[] attestationObject = createAttestationObject(options, credentialId, keyPair.getPublic(), selectedAlg);
-            
+
             // 4. Create client data JSON
             String clientDataJson = createClientDataJson(options);
-            
+
             // 5. Create response
             AuthenticatorAttestationResponse response = createAttestationResponse(attestationObject, clientDataJson);
-            
-            // 6 y 7. Crear respuesta JSON directamente (evitando PublicKeyCredential que puede causar UnsupportedOperationException)
-            // Construimos el JSON manualmente para evitar problemas de serialización con objetos complejos
+
+            // --- FORMATTER: Select output style for binary fields (standard, base64, bytes, chrome) ---
+            ResponseFormatter formatter = new ResponseFormatter(format != null ? format : "standard", jsonMapper);
+
+            // Create response node with all expected fields (WebAuthn spec)
             ObjectNode credentialNode = jsonMapper.createObjectNode();
-            credentialNode.put("id", credentialId.getBase64Url());
-            credentialNode.put("rawId", credentialId.getBase64Url());
+            // Use formatter for id/rawId
+            JsonNode idNode = formatter.formatBinary(credentialId, "id");
+            if (idNode.isTextual()) credentialNode.put("id", idNode.asText());
+            else credentialNode.set("id", idNode);
+            JsonNode rawIdNode = formatter.formatBinary(credentialId, "rawId");
+            if (rawIdNode.isTextual()) credentialNode.put("rawId", rawIdNode.asText());
+            else credentialNode.set("rawId", rawIdNode);
             credentialNode.put("type", "public-key");
-            
+
+            // clientExtensionResults at root (with credProps.rk=true)
+            ObjectNode clientExtResults = jsonMapper.createObjectNode();
+            ObjectNode credProps = jsonMapper.createObjectNode();
+            credProps.put("rk", true);
+            clientExtResults.set("credProps", credProps);
+            credentialNode.set("clientExtensionResults", clientExtResults);
+
+            // Build response node with all expected fields (WebAuthn spec)
             ObjectNode responseNode = jsonMapper.createObjectNode();
             responseNode.put("clientDataJSON", response.getClientDataJSON().getBase64Url());
             responseNode.put("attestationObject", response.getAttestationObject().getBase64Url());
-            
+
+            // authenticatorAttachment at root (platform / cross-platform) - Chrome extension
+            credentialNode.put("authenticatorAttachment", "platform");
+
+            // --- Add authenticatorData --- Chrome extension
+            // Extract authenticatorData from attestationObject (CBOR decode)
+            try {
+                byte[] attObjBytes = response.getAttestationObject().getBytes();
+                com.fasterxml.jackson.dataformat.cbor.CBORFactory cborFactory = new com.fasterxml.jackson.dataformat.cbor.CBORFactory();
+                com.fasterxml.jackson.databind.ObjectMapper cborMapper = new com.fasterxml.jackson.databind.ObjectMapper(cborFactory);
+                java.util.Map attObjMap = cborMapper.readValue(attObjBytes, java.util.Map.class);
+                byte[] authenticatorData = (byte[]) attObjMap.get("authData");
+                if (authenticatorData != null) {
+                    responseNode.put("authenticatorData", new ByteArray(authenticatorData).getBase64Url());
+                }
+            } catch (Exception e) {
+                // If extraction fails, do not set authenticatorData
+            }
+
+            /**
+             * publicKey: DER-encoded SubjectPublicKeyInfo, base64 (browser-compatible)
+             * Chrome extension. The publicKey field is not part of the WebAuthn spec.
+             */
+            byte[] derEncoded = keyPair.getPublic().getEncoded();
+            String derBase64 = java.util.Base64.getEncoder().encodeToString(derEncoded);
+            responseNode.put("publicKey", derBase64);
+
+            // --- Add publicKeyAlgorithm --- Chrome extension
+            responseNode.put("publicKeyAlgorithm", selectedAlg.getId());
+
+            // --- Add transports --- Chrome extension
+            responseNode.putArray("transports").add("internal");
+
             credentialNode.set("response", responseNode);
-            
+
             // Crear JSON de respuesta
             String registrationResponseJson = jsonMapper.writeValueAsString(credentialNode);
             

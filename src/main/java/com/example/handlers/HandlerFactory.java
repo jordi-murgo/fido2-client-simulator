@@ -30,27 +30,15 @@ public class HandlerFactory {
      * @return a credential handler for the specified operation
      * @throws IllegalArgumentException if the operation is unknown
      */
-    public CommandHandler createHandler(String operation, boolean interactive, boolean verbose) {
+    public CommandHandler createHandler(String operation, String format, boolean interactive, boolean verbose) {
         if ("create".equalsIgnoreCase(operation)) {
-            return new CreateHandler(credentialStore, jsonMapper);
+            return new CreateHandler(credentialStore, jsonMapper, format);
         } else if ("get".equalsIgnoreCase(operation)) {
-            return new GetHandler(credentialStore, jsonMapper, interactive);
+            return new GetHandler(credentialStore, jsonMapper, format, interactive);
         } else if ("info".equalsIgnoreCase(operation)) {
             return new InfoHandler(credentialStore, jsonMapper, verbose);
         }
         
         throw new IllegalArgumentException("Unknown operation: " + operation);
-    }
-    
-    /**
-     * Creates a credential handler for the specified operation with default verbosity (false).
-     * 
-     * @param operation the operation to create a handler for (create, get, info)
-     * @param interactive whether to use interactive mode for credential selection
-     * @return a credential handler for the specified operation
-     * @throws IllegalArgumentException if the operation is unknown
-     */
-    public CommandHandler createHandler(String operation, boolean interactive) {
-        return createHandler(operation, interactive, false);
     }
 }

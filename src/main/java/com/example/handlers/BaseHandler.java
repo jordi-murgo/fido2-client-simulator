@@ -17,15 +17,17 @@ import com.yubico.webauthn.data.PublicKeyCredentialRequestOptions;
 public abstract class BaseHandler {
     protected final CredentialStore credentialStore;
     protected final ObjectMapper jsonMapper;
+    protected final String format;
     
     /**
      * Constructs a BaseHandler.
      * @param credentialStore The CredentialStore instance
      * @param jsonMapper The Jackson ObjectMapper
      */
-    public BaseHandler(CredentialStore credentialStore, ObjectMapper jsonMapper) {
+    public BaseHandler(CredentialStore credentialStore, ObjectMapper jsonMapper, String format) {
         this.credentialStore = credentialStore;
         this.jsonMapper = jsonMapper;
+        this.format = format;
         configureObjectMapper();
     }
     

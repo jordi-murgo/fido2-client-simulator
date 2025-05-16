@@ -84,6 +84,12 @@ public class Fido2ClientApp implements Callable<Integer> {
     @Option(names = {"--verbose"}, description = "Enable verbose output with detailed logging")
     boolean verbose = false;
 
+    /**
+     * Output format for binary fields: standard (base64url), base64, bytes
+     */
+    @Option(names = {"--format"}, description = "Output format for binary fields: base64url (default), base64, bytes")
+    String format = "base64url";
+
     @Parameters(index = "0", description = "The operation to perform: 'create', 'get', or 'info'.")
     private String operation;
 
@@ -232,15 +238,15 @@ public class Fido2ClientApp implements Callable<Integer> {
      */
     private String processOperation(String inputJson) {
         try {
-            CommandHandler handler = handlerFactory.createHandler(operation, interactive, verbose);
-            return handler.handleRequest(inputJson != null ? inputJson : "{}");
+                CommandHandler handler = handlerFactory.createHandler(operation, format, interactive, verbose);
+                return handler.handleRequest(inputJson != null ? inputJson : "{}");
         } catch (Exception e) {
             String errorMessage = e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName();
             reportError("Error processing operation: " + errorMessage, e);
             return null;
         }
     }
-    
+
     /**
      * Report an error in the appropriate format based on the current mode.
      * 
