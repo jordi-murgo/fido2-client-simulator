@@ -1,0 +1,104 @@
+{
+    "rp": {
+        "id": "console.pingone.eu",
+        "name": "Ping Web Authentication"
+    },
+    "user": {
+        "id": [
+            -102,
+            -85,
+            -24,
+            -31,
+            -2,
+            39,
+            -115,
+            98,
+            -80,
+            -22,
+            -8,
+            -127,
+            96,
+            45,
+            109,
+            -13,
+            -105,
+            -24,
+            -46,
+            117,
+            -33,
+            92,
+            127,
+            124,
+            -30,
+            -27,
+            -43,
+            122,
+            -45,
+            -14,
+            37,
+            -127
+        ],
+        "displayName": "jordi.murgo@gft.com",
+        "name": "jordi.murgo@gft.com"
+    },
+    "challenge": [
+        -70,
+        -63,
+        -33,
+        28,
+        -75,
+        122,
+        -78,
+        -97,
+        73,
+        60,
+        102,
+        102,
+        -99,
+        79,
+        -91,
+        24,
+        110,
+        -123,
+        38,
+        -54,
+        53,
+        72,
+        -28,
+        -83,
+        -119,
+        -29,
+        32,
+        44,
+        -59,
+        -103,
+        -120,
+        60
+    ],
+    "pubKeyCredParams": [
+        {
+            "type": "public-key",
+            "alg": "-7"
+        },
+        {
+            "type": "public-key",
+            "alg": "-37"
+        },
+        {
+            "type": "public-key",
+            "alg": "-257"
+        }
+    ],
+    "timeout": 120000,
+    "excludeCredentials": [],
+    "authenticatorSelection": {
+        "residentKey": "required",
+        "requireResidentKey": true,
+        "userVerification": "required"
+    },
+    "attestation": "none",
+    "extensions": {
+        "credProps": true,
+        "hmacCreateSecret": true
+    }
+}

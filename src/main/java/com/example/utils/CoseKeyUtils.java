@@ -3,10 +3,12 @@ package com.example.utils;
 import com.yubico.webauthn.data.ByteArray;
 import com.yubico.webauthn.data.COSEAlgorithmIdentifier;
 
+import java.io.IOException;
 import java.math.BigInteger;
-import java.security.PublicKey;
+import java.security.*;
 import java.security.interfaces.ECPublicKey;
 import java.security.interfaces.RSAPublicKey;
+import java.security.spec.*;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
@@ -71,5 +73,103 @@ public class CoseKeyUtils {
             return tmp;
         }
         return bytes;
+    }
+
+    /**
+     * Converts a COSE-encoded public key to DER format.
+     * @param coseKey The COSE-encoded public key as a map
+     * @return The DER-encoded public key
+     * @throws NoSuchAlgorithmException If the key algorithm is not supported
+     * @throws InvalidKeySpecException If the key specification is invalid
+     * @throws IOException If there is an error encoding the key
+     */
+    public static byte[] coseToDer(Map<Object, Object> coseKey) throws NoSuchAlgorithmException, InvalidKeySpecException, IOException {
+        int kty = ((Number) coseKey.get(1)).intValue(); // Key type
+        
+        if (kty == 2) { // EC2 key type
+            return coseEcToDer(coseKey);
+        } else if (kty == 3) { // RSA key type
+            return coseRsaToDer(coseKey);
+        } else {
+            throw new UnsupportedOperationException("Unsupported key type: " + kty);
+        }
+    }
+    
+    private static byte[] coseEcToDer(Map<Object, Object> coseKey) throws NoSuchAlgorithmException, InvalidKeySpecException, IOException {
+        // Get curve and coordinates
+        int crv = ((Number) coseKey.get(-1)).intValue();
+        byte[] x = (byte[]) coseKey.get(-2);
+        byte[] y = (byte[]) coseKey.get(-3);
+        
+        // Convert coordinates to BigIntegers
+        BigInteger xBi = new BigInteger(1, x);
+        BigInteger yBi = new BigInteger(1, y);
+        
+        // Create EC public key spec
+        String curveName;
+        switch (crv) {
+            case 1: curveName = "secp256r1"; break;
+            default: throw new UnsupportedOperationException("Unsupported curve: " + crv);
+        }
+        
+        // Get the curve parameters
+        KeyPairGenerator kpg = KeyPairGenerator.getInstance("EC");
+        AlgorithmParameterSpec ecSpec = new ECGenParameterSpec(curveName);
+        try {
+            kpg.initialize(ecSpec);
+        } catch (InvalidAlgorithmParameterException e) {
+            throw new NoSuchAlgorithmException("Invalid EC parameter spec: " + curveName, e);
+        }
+        
+        // Create the public key
+        ECPoint ecPoint = new ECPoint(xBi, yBi);
+        ECPublicKeySpec ecKeySpec = new ECPublicKeySpec(ecPoint, ((ECPublicKey)kpg.generateKeyPair().getPublic()).getParams());
+        PublicKey publicKey = KeyFactory.getInstance("EC").generatePublic(ecKeySpec);
+        
+        // Return DER-encoded key
+        return publicKey.getEncoded();
+    }
+    
+    private static byte[] coseRsaToDer(Map<Object, Object> coseKey) throws NoSuchAlgorithmException, InvalidKeySpecException {
+        // Get RSA parameters
+        byte[] n = (byte[]) coseKey.get(-1); // RSA modulus n
+        byte[] e = (byte[]) coseKey.get(-2); // RSA public exponent e
+        
+        // Convert to BigIntegers
+        BigInteger modulus = new BigInteger(1, n);
+        BigInteger publicExponent = new BigInteger(1, e);
+        
+        // Create RSA public key spec
+        RSAPublicKeySpec keySpec = new RSAPublicKeySpec(modulus, publicExponent);
+        
+        // Generate the public key
+        PublicKey publicKey = KeyFactory.getInstance("RSA").generatePublic(keySpec);
+        
+        // Return DER-encoded key
+        return publicKey.getEncoded();
+    }
+    
+    /**
+     * Converts a COSE-encoded public key to a Java PublicKey object.
+     * @param coseKey The COSE-encoded public key as a map
+     * @return A PublicKey object
+     * @throws NoSuchAlgorithmException If the key algorithm is not supported
+     * @throws InvalidKeySpecException If the key specification is invalid
+     */
+    public static PublicKey coseToPublicKey(Map<Object, Object> coseKey) throws NoSuchAlgorithmException, InvalidKeySpecException {
+        try {
+            byte[] der = coseToDer(coseKey);
+            int kty = ((Number) coseKey.get("1")).intValue();
+            
+            if (kty == 2) { // EC
+                return KeyFactory.getInstance("EC").generatePublic(new X509EncodedKeySpec(der));
+            } else if (kty == 3) { // RSA
+                return KeyFactory.getInstance("RSA").generatePublic(new X509EncodedKeySpec(der));
+            } else {
+                throw new UnsupportedOperationException("Unsupported key type: " + kty);
+            }
+        } catch (IOException e) {
+            throw new InvalidKeySpecException("Failed to convert COSE to PublicKey: " + e.getMessage(), e);
+        }
     }
 }

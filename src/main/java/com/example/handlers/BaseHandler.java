@@ -5,21 +5,27 @@ import java.util.*;
 import com.example.config.CommandOptions;
 import com.example.storage.CredentialStore;
 import com.example.utils.EncodingUtils;
+import com.example.utils.ResponseFormatter;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.yubico.webauthn.data.AssertionExtensionInputs;
 import com.yubico.webauthn.data.PublicKeyCredentialRequestOptions;
 
+import lombok.extern.slf4j.Slf4j;
+
 /**
  * Base class for FIDO2 handlers providing common functionality.
  */
+@Slf4j
 public abstract class BaseHandler {
     protected final CredentialStore credentialStore;
     protected final ObjectMapper jsonMapper;
     protected final CommandOptions options;
+    protected final ResponseFormatter formatter;
     
     /**
      * Constructs a BaseHandler.
@@ -31,41 +37,46 @@ public abstract class BaseHandler {
         this.credentialStore = credentialStore;
         this.jsonMapper = jsonMapper;
         this.options = options;
+        this.formatter = new ResponseFormatter(jsonMapper, options);
         configureObjectMapper();
     }
     
     /**
-     * Configures the ObjectMapper to exclude null values.
+     * Configures the ObjectMapper with common settings.
+     * <p>
+     * This method sets up the ObjectMapper to exclude null values from serialization
+     * and configures pretty printing if the prettyPrint option is enabled.
+     * </p>
      */
     protected void configureObjectMapper() {
+        // Always exclude null values from serialization
         this.jsonMapper.setSerializationInclusion(JsonInclude.Include.NON_NULL);
+        
+        // Enable pretty printing if requested
+        if (options.isPrettyPrint()) {
+            this.jsonMapper.enable(SerializationFeature.INDENT_OUTPUT);
+        } else {
+            this.jsonMapper.disable(SerializationFeature.INDENT_OUTPUT);
+        }
     }
     
     /**
-     * Adds rawId to the JSON response.
+     * Removes null values from the JSON response.
      * @param jsonResponse The JSON response string
-     * @return The JSON response with rawId added
+     * @return The JSON response with null values removed
      * @throws JsonProcessingException if JSON processing fails
      */
-    protected String addRawIdToResponse(String jsonResponse) throws JsonProcessingException {
+    protected String removeNulls(String jsonResponse) throws JsonProcessingException {
         try {
             // En lugar de usar deepCopy(), parseamos el JSON a un nuevo ObjectNode
             JsonNode tree = jsonMapper.readTree(jsonResponse);
-            ObjectNode responseNode = jsonMapper.createObjectNode();
 
             // Eliminamos todos los campos con null
-            removeNullFields(tree);
-            // Copiamos manualmente todos los campos
-            tree.fieldNames().forEachRemaining(fieldName -> {
-                responseNode.set(fieldName, tree.get(fieldName));
-            });
-            
-            // Añadimos rawId si es necesario
-            if (responseNode.has("id") && !responseNode.has("rawId")) {
-                responseNode.put("rawId", responseNode.get("id").asText());
+            if(options.isRemoveNulls()) {
+                removeNullFields(tree);
             }
 
-            return jsonMapper.writeValueAsString(responseNode);
+            return jsonMapper.writeValueAsString(tree);
         } catch (Exception e) {
             // Si hay algún error, devolvemos el JSON original
             return jsonResponse;

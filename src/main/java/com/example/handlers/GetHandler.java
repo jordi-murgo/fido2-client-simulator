@@ -21,16 +21,16 @@ import com.example.utils.SignatureUtils;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.yubico.webauthn.data.AuthenticatorAssertionResponse;
 import com.yubico.webauthn.data.ByteArray;
-import com.yubico.webauthn.data.ClientAssertionExtensionOutputs;
-import com.yubico.webauthn.data.PublicKeyCredential;
 import com.yubico.webauthn.data.PublicKeyCredentialDescriptor;
 import com.yubico.webauthn.data.PublicKeyCredentialRequestOptions;
+
+import lombok.extern.slf4j.Slf4j;
 
 /**
  * Handles the FIDO2 authentication (get) operation, simulating an authenticator's credential usage.
  */
+@Slf4j
 public class GetHandler extends BaseHandler implements CommandHandler {
     @Override
     public String handleRequest(String requestJson) throws Exception {
@@ -48,12 +48,23 @@ public class GetHandler extends BaseHandler implements CommandHandler {
 
     /**
      * Handles the authentication of a FIDO2 credential, returning the PublicKeyCredential as JSON.
+     * <p>
+     * This method simulates an authenticator performing the following steps:
+     * 1. Select a credential based on the provided options
+     * 2. Generate authenticator data (RP ID hash, flags, counter)
+     * 3. Create client data JSON with proper challenge and origin
+     * 4. Sign the concatenation of authenticator data and client data hash
+     * 5. Format the response according to the requested format
+     * </p>
+     * 
      * @param optionsJson JSON string for PublicKeyCredentialRequestOptions
      * @return JSON string representing the PublicKeyCredential
      * @throws Exception on error
      */
     public String handleGet(String optionsJson) throws Exception {
         try {
+            log.debug("Handling get request with format: {}", formatter.getFormatName());
+            
             // Decode and ensure extensions are present
             optionsJson = tryDecodeBase64Json(optionsJson);
             optionsJson = ensureExtensionsInJson(optionsJson);
@@ -61,7 +72,7 @@ public class GetHandler extends BaseHandler implements CommandHandler {
             // Parse options
             PublicKeyCredentialRequestOptions options = jsonMapper.readValue(optionsJson, PublicKeyCredentialRequestOptions.class);
             options = ensureExtensions(options);
-    
+
             // 1. Select a credential
             ByteArray credentialId = selectCredential(options);
             
@@ -78,16 +89,48 @@ public class GetHandler extends BaseHandler implements CommandHandler {
             // 5. Generate signature
             byte[] signature = generateSignature(authenticatorData, clientDataJson, privateKey);
             
-            // 6. Create assertion response
-            AuthenticatorAssertionResponse response = createAssertionResponse(authenticatorData, clientDataJson, signature);
+            // Initialize the response formatter
+            log.debug("Using response format: {}", formatter.getFormatName());
             
-            // 7. Create credential
-            PublicKeyCredential<AuthenticatorAssertionResponse, ClientAssertionExtensionOutputs> credential = createCredential(credentialId, response);
+            // Create credential node with all expected fields (WebAuthn spec)
+            ObjectNode credentialNode = jsonMapper.createObjectNode();
             
-            // 8. Convert to JSON and add rawId
-            String assertionResponseJson = jsonMapper.writeValueAsString(credential);
-            return addRawIdToResponse(assertionResponseJson);
-        } catch (IOException | SignatureException e) {
+            // Format credential ID according to the configuration
+            formatter.formatBinary(credentialNode, "id", credentialId);
+            formatter.formatBinary(credentialNode, "rawId", credentialId);
+            
+            // Set the credential type
+            credentialNode.put("type", "public-key");
+            
+            // Add empty clientExtensionResults at root
+            ObjectNode clientExtResults = jsonMapper.createObjectNode();
+            credentialNode.set("clientExtensionResults", clientExtResults);
+            
+            // Build response node with all expected fields
+            ObjectNode responseNode = jsonMapper.createObjectNode();
+            
+            // Format clientDataJSON according to the configuration
+            formatter.formatBinary(responseNode, "clientDataJSON", new ByteArray(clientDataJson.getBytes(java.nio.charset.StandardCharsets.UTF_8)));
+            
+            // Format authenticatorData according to the configuration
+            formatter.formatBinary(responseNode, "authenticatorData", new ByteArray(authenticatorData));
+            
+            // Format signature according to the configuration
+            formatter.formatBinary(responseNode, "signature", new ByteArray(signature));
+            
+            // Add userHandle if available
+            Optional<ByteArray> userHandle = credentialStore.getUserHandleForCredential(credentialId);
+            if (userHandle.isPresent() && !userHandle.get().isEmpty()) {
+                formatter.formatBinary(responseNode, "userHandle", userHandle.get());
+            }
+            
+            // Set the response node in the credential node
+            credentialNode.set("response", responseNode);
+            
+            // Convert to JSON string
+            return removeNulls(credentialNode.toString());
+        } catch (Exception e) {
+            log.debug("Error during authentication", e);
             throw new Exception("Error during authentication: " + e.getMessage(), e);
         }
     }
@@ -230,7 +273,7 @@ public class GetHandler extends BaseHandler implements CommandHandler {
         clientData.put("type", "webauthn.get");
         clientData.put("challenge", requestOptions.getChallenge().getBase64Url());
         clientData.put("origin", "https://" + requestOptions.getRpId());
-        return jsonMapper.writeValueAsString(clientData);
+        return clientData.toString();
     }
 
     private byte[] generateSignature(byte[] authenticatorData, String clientDataJson, PrivateKey privateKey) throws SignatureException {
@@ -243,43 +286,9 @@ public class GetHandler extends BaseHandler implements CommandHandler {
         return SignatureUtils.sign(dataToSign, privateKey);
     }
 
-    /**
-     * Creates an AuthenticatorAssertionResponse from authenticator data, client data JSON, and signature.
-     * @param authenticatorData The authenticator data bytes
-     * @param clientDataJson The client data JSON string
-     * @param signature The signature bytes
-     * @return The assertion response
-     */
-    private AuthenticatorAssertionResponse createAssertionResponse(byte[] authenticatorData, String clientDataJson, byte[] signature) {
-        try {
-            // Convert raw bytes directly - no intermediate conversions
-            ByteArray authenticatorDataByteArray = new ByteArray(authenticatorData);
-            
-            // For client data JSON, ensure proper encoding
-            byte[] clientDataJsonBytes = clientDataJson.getBytes(java.nio.charset.StandardCharsets.UTF_8);
-            ByteArray clientDataJsonByteArray = new ByteArray(clientDataJsonBytes);
-            
-            // Signature as ByteArray
-            ByteArray signatureByteArray = new ByteArray(signature);
-            
-            return AuthenticatorAssertionResponse.builder()
-                .authenticatorData(authenticatorDataByteArray)
-                .clientDataJSON(clientDataJsonByteArray)
-                .signature(signatureByteArray)
-                .build();
-        } catch (Exception e) {
-            throw new IllegalArgumentException("Error creating assertion response: " + e.getMessage(), e);
-        }
-    }
-
-    private PublicKeyCredential<AuthenticatorAssertionResponse, ClientAssertionExtensionOutputs> createCredential(
-            ByteArray credentialId, AuthenticatorAssertionResponse response) {
-        return PublicKeyCredential.<AuthenticatorAssertionResponse, ClientAssertionExtensionOutputs>builder()
-            .id(credentialId)
-            .response(response)
-            .clientExtensionResults(ClientAssertionExtensionOutputs.builder().build())
-            .build();
-    }
+    // Estos métodos ya no son necesarios después de la refactorización del método handleGet
+    // Los métodos createAssertionResponse y createCredential se han eliminado porque ahora construimos
+    // directamente los nodos JSON con el formatter
 
     private static byte[] composeAuthenticatorData(byte[] rpIdHash, byte flags, long signCount) {
         byte[] signCountBytes = ByteBuffer.allocate(4).putInt((int) signCount).array();

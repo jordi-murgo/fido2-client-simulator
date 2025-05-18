@@ -19,6 +19,7 @@ import java.util.Objects;
 import java.util.UUID;
 import java.util.Optional;
 
+import lombok.Getter;
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
 
 import com.example.config.ConfigurationManager;
@@ -45,6 +46,7 @@ import lombok.extern.slf4j.Slf4j;
  * @since 1.0
  */
 @Slf4j
+@Getter
 public class KeyStoreManager implements CredentialStore {
     static {
         Security.addProvider(new BouncyCastleProvider());
@@ -81,37 +83,6 @@ public class KeyStoreManager implements CredentialStore {
         metadataMap.put(credentialId, metadata);
     }
     
-    /**
-     * Obtiene la ruta del archivo keystore
-     * @return Ruta del archivo keystore
-     */
-    public String getKeystorePath() {
-        return keystorePath;
-    }
-    
-    /**
-     * Obtiene la ruta del archivo de metadatos
-     * @return Ruta del archivo de metadatos
-     */
-    public String getMetadataPath() {
-        return metadataPath;
-    }
-    
-    /**
-     * Obtiene la fecha de última actualización del keystore
-     * @return Timestamp de última actualización del keystore
-     */
-    public long getLastKeystoreUpdate() {
-        return lastKeystoreUpdate;
-    }
-    
-    /**
-     * Obtiene la fecha de última actualización de los metadatos
-     * @return Timestamp de última actualización de los metadatos
-     */
-    public long getLastMetadataUpdate() {
-        return lastMetadataUpdate;
-    }
     public static final String PROVIDER = BouncyCastleProvider.PROVIDER_NAME;
     private KeyStore keyStore;
     public Map<String, CredentialMetadata> metadataMap = new HashMap<>();
@@ -131,7 +102,7 @@ public class KeyStoreManager implements CredentialStore {
         metadataPath = config.getMetadataPath();
         keystorePassword = config.getKeystorePassword();
         
-        log.info("Initializing KeyStoreManager with keystore path: {}, metadata path: {}", 
+        log.debug("Initializing KeyStoreManager with keystore path: {}, metadata path: {}", 
                   new Object[]{keystorePath, metadataPath});
         
         // Initialize the KeyStore
@@ -142,12 +113,12 @@ public class KeyStoreManager implements CredentialStore {
         if (keystoreFile.exists()) {
             try (FileInputStream fis = new FileInputStream(keystoreFile)) {
                 keyStore.load(fis, keystorePassword.toCharArray());
-                log.info("Loaded existing keystore from: {}", keystorePath);
+                log.debug("Loaded existing keystore from: {}", keystorePath);
             }
         } else {
             // Create an empty keystore
             keyStore.load(null, keystorePassword.toCharArray());
-            log.info("Created new empty keystore");
+            log.debug("Created new empty keystore");
         }
         try {
             loadMetadata();
@@ -170,7 +141,7 @@ public class KeyStoreManager implements CredentialStore {
         ObjectMapper mapper = new ObjectMapper();
         mapper.enable(com.fasterxml.jackson.databind.SerializationFeature.INDENT_OUTPUT); // Pretty print
         mapper.writeValue(metadataFile, metadataMap);
-        log.info("Metadata saved to: {}", metadataPath);
+        log.debug("Metadata saved to: {}", metadataPath);
     }
 
     /**
@@ -191,7 +162,7 @@ public class KeyStoreManager implements CredentialStore {
                 }
                 // Actualizar la fecha de última modificación desde el archivo
                 lastMetadataUpdate = metadataFile.lastModified();
-                log.info("Loaded metadata from: {}, found {} credentials",
+                log.debug("Loaded metadata from: {}, found {} credentials",
                         new Object[]{metadataPath, metadataMap.size()});
             } catch (IOException e) {
                 log.error("Failed to load metadata from: " + metadataPath, e);
@@ -199,7 +170,7 @@ public class KeyStoreManager implements CredentialStore {
                 metadataMap.clear();
             }
         } else {
-            log.info("No metadata file found, will create: {}", metadataPath);
+            log.debug("No metadata file found, will create: {}", metadataPath);
         }
     }
 
@@ -227,7 +198,7 @@ public class KeyStoreManager implements CredentialStore {
         try (FileOutputStream fos = new FileOutputStream(keystorePath)) {
             keyStore.store(fos, keystorePassword.toCharArray());
             lastKeystoreUpdate = System.currentTimeMillis();
-            log.info("Keystore saved to: {}", keystorePath);
+            log.debug("Keystore saved to: {}", keystorePath);
         }
     }
 
@@ -251,14 +222,19 @@ public class KeyStoreManager implements CredentialStore {
         Objects.requireNonNull(alg, "Algorithm cannot be null");
         
         final String alias = credentialId.getBase64Url();
-        log.info("Generating key pair for credential: " + alias + " with algorithm: " + alg);
+        log.debug("Generating key pair for credential: " + alias + " with algorithm: " + alg);
         
         // Key pair generation using Factory Method pattern
         final KeyPair keyPair = createKeyPairForAlgorithm(alg);
         
         try {
+            // Determine the appropriate signature algorithm based on the key type
+            String sigAlgName = keyPair.getPrivate() instanceof java.security.interfaces.RSAPrivateKey 
+                ? "SHA256withRSA" 
+                : "SHA256withECDSA";
+                
             // Store the key pair in the keystore with a self-signed certificate
-            final Certificate[] certChain = { createSelfSignedCertificate(keyPair, "SHA256withECDSA", userHandle) };
+            final Certificate[] certChain = { createSelfSignedCertificate(keyPair, sigAlgName, userHandle) };
             keyStore.setKeyEntry(alias, keyPair.getPrivate(), keystorePassword.toCharArray(), certChain);
             saveKeyStore();
             
@@ -277,7 +253,7 @@ public class KeyStoreManager implements CredentialStore {
             
             metadataMap.put(alias, meta);
             saveMetadata();
-            log.info("Key pair successfully generated and stored for: " + alias);
+            log.debug("Key pair successfully generated and stored for: " + alias);
             return keyPair;
         } catch (Exception e) {
             log.error("Error storing key pair", e);
@@ -406,7 +382,7 @@ public class KeyStoreManager implements CredentialStore {
         return Optional.ofNullable(cert)
                 .map(Certificate::getPublicKey)
                 .map(key -> {
-                    log.info("Public key retrieved for credential: " + alias);
+                    log.debug("Public key retrieved for credential: " + alias);
                     return key;
                 });
     }
@@ -515,7 +491,7 @@ public class KeyStoreManager implements CredentialStore {
     public static ByteArray generateRandomCredentialId() {
         // Generate a UUID v4 (completely random)
         final UUID uuid = UUID.randomUUID();
-        log.info("Generating credential ID based on UUID: ", uuid);
+        log.debug("Generating credential ID based on UUID: ", uuid);
         
         // Transform to ByteArray using ByteBuffer (fluent approach)
         return new ByteArray(

@@ -4,10 +4,12 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.util.concurrent.Callable;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 
 import com.example.config.CommandOptions;
+
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.LoggerContext;
+import org.slf4j.LoggerFactory; // For SLF4J/Logback dynamic configuration
 import com.example.handlers.CommandHandler;
 import com.example.handlers.HandlerFactory;
 import com.example.storage.CredentialStore;
@@ -94,12 +96,26 @@ public class Fido2ClientApp implements Callable<Integer> {
     public void setVerbose(boolean verbose) {
         options.setVerbose(verbose);
     }
-
-    @Option(names = {"--format"}, description = "Output format for binary fields: base64url (default), base64, bytes")
+    
+    @Option(names = {"--remove-nulls"}, description = "Remove null values from the output JSON")
+    public void setRemoveNulls(boolean removeNulls) {
+        options.setRemoveNulls(removeNulls);
+    }
+    
+    /**
+     * Sets the output format for binary fields in the response.
+     * @param format The format name (case-insensitive)
+     * @see CommandOptions#SUPPORTED_FORMATS
+     */
+    @Option(names = {"--format"}, 
+            description = {
+                "Output format for binary fields.",
+                "Default: default"},
+            defaultValue = "default")
     public void setFormat(String format) {
         options.setFormat(format);
     }
-
+    
     @Parameters(index = "0", description = "The operation to perform: 'create', 'get', or 'info'.")
     public void setOperation(String operation) {
         options.setOperation(operation);
@@ -109,7 +125,7 @@ public class Fido2ClientApp implements Callable<Integer> {
     public void setJsonInputString(String jsonInputString) {
         options.setJsonInputString(jsonInputString);
     }
-    
+
     /**
      * Get the command options.
      * @return The command options
@@ -149,14 +165,19 @@ public class Fido2ClientApp implements Callable<Integer> {
      */
     @Override
     public Integer call() throws Exception {
-        // Configure logging based on options
-        Logger rootLogger = Logger.getLogger(this.getClass().getName());
-        if (options.isVerbose()) {
-            rootLogger.setLevel(Level.FINE);
-        } else {
-            rootLogger.setLevel(Level.INFO);
-        }
-        
+        /**
+     * Dynamically set the SLF4J/Logback log level based on the --verbose flag.
+     * If verbose is enabled, set to DEBUG; otherwise, set to INFO.
+     * This ensures correct runtime log level regardless of logback.xml default.
+     */
+    LoggerContext loggerContext = (LoggerContext) LoggerFactory.getILoggerFactory();
+    ch.qos.logback.classic.Logger rootLogger = loggerContext.getLogger("ROOT");
+    if (options.isVerbose()) {
+        rootLogger.setLevel(Level.DEBUG);
+    } else {
+        rootLogger.setLevel(Level.INFO);
+    }
+
         // Apply JSON formatting based on options
         jsonMapper.configure(SerializationFeature.INDENT_OUTPUT, options.isPrettyPrint());
         // Exclude null values

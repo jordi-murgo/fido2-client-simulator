@@ -164,9 +164,39 @@ java -jar target/fido2-client-simulator-1.1-SNAPSHOT.jar get --input get_options
 ### Attestation Object Decoding
 During credential creation, the attestation object is automatically decoded and displayed.
 
-## Configuration
+### Output Formats
 
-### Configuration File Locations
+The simulator supports different output formats for binary data in the response. You can specify the format using the `--format` option:
+
+```bash
+java -jar target/fido2-client-simulator-1.1-SNAPSHOT.jar create --input create_options.json --format=chrome
+```
+
+#### Available Formats
+
+| Format | Description |
+|--------|-------------|
+| `default` | Uses base64url for all binary fields (WebAuthn standard) |
+| `bytes` | Outputs binary data as arrays of signed bytes (-128 to 127) |
+| `json` | Uses standard base64 for binary fields (better for some JSON tools) |
+| `chrome` | Similar to Chrome's WebAuthn debug output |
+| `debug` | All fields as arrays of integers (0-255) for easy inspection |
+| `minimal` | Only includes essential fields with compact encoding |
+
+#### Format Configuration
+
+You can customize the output formats by editing the `fido2_formats.yaml` file in the resources directory. Each format can specify how different fields should be encoded.
+
+Available encoding options for each field:
+- `base64`: Standard Base64 encoding (with +/)
+- `base64url`: URL-safe Base64 encoding (with -_)
+- `bytearray` or `bytes`: Array of signed bytes (-128 to 127)
+- `intarray` or `ints`: Array of unsigned integers (0-255)
+- `string`: Try to decode as UTF-8 text (falls back to base64url if not valid text)
+
+### Configuration
+
+#### Configuration File Locations
 The configuration is loaded from the following locations in order of precedence:
 
 1. Current directory: `fido2_config.properties`
@@ -174,7 +204,7 @@ The configuration is loaded from the following locations in order of precedence:
 3. System-wide: `/etc/fido2/config.properties`
 4. Application classpath (default embedded configuration)
 
-### Available Configuration Properties
+#### Available Configuration Properties
 
 | Property | Description | Default Value |
 |----------|-------------|---------------|
@@ -182,8 +212,9 @@ The configuration is loaded from the following locations in order of precedence:
 | `metadata.path` | Path to the JSON metadata file | `fido2_metadata.json` |
 | `keystore.password` | Password for the keystore | `changeit` |
 | `log.level` | Logging level | `INFO` |
+| `default.format` | Default output format to use | `default` |
 
-### Sample Configuration
+#### Sample Configuration
 
 ```properties
 # Storage settings
@@ -195,6 +226,9 @@ keystore.password=your_secure_password
 
 # Logging configuration
 log.level=INFO
+
+# Default output format
+default.format=chrome
 ```
 
 ### Files Created

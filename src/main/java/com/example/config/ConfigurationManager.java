@@ -1,100 +1,159 @@
 package com.example.config;
 
+import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
+
+import com.example.config.Configuration.KeystoreConfig;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import java.io.InputStream;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Properties;
 
 import lombok.extern.slf4j.Slf4j;
 
 /**
- * Configuration manager for the FIDO2 Client Simulator.
- * Provides centralized access to all configuration properties.
- * 
- * @author Jordi Murgo
- * @since 1.1
+ * Manages configuration loading and access for the FIDO2 Client Simulator.
+ * Loads configuration from properties files and YAML format configurations.
  */
 @Slf4j
 public class ConfigurationManager {
     
-    // Default configuration values
-    private static final String DEFAULT_KEYSTORE_PATH = "fido2_keystore.p12";
-    private static final String DEFAULT_METADATA_PATH = "fido2_metadata.json";
-    private static final String DEFAULT_KEYSTORE_PASSWORD = "fido2simulator";
+    private static final String DEFAULT_FORMAT_CONFIG_PATH = "configuration.yaml";
     
-    // Configuration file locations
-    private static final String[] CONFIG_LOCATIONS = {
-        "fido2_config.properties",                      // Current directory
-        System.getProperty("user.home") + "/.fido2/config.properties", // User home directory
-        "/etc/fido2/config.properties"                  // System-wide configuration
-    };
-    
-    private static ConfigurationManager instance;
-    private Properties properties = new Properties();
+    private Configuration configuration = new Configuration();
     private boolean loaded = false;
+    
+    // Singleton instance holder
+    private static class Holder {
+        private static final ConfigurationManager INSTANCE = new ConfigurationManager();
+    }
+    
+    private ConfigurationManager() {
+        try {
+            loadFormatConfiguration(DEFAULT_FORMAT_CONFIG_PATH);
+            loaded = true;
+        } catch (Exception e) {
+            log.error("Failed to initialize ConfigurationManager", e);
+            throw new RuntimeException("Failed to initialize ConfigurationManager", e);
+        }
+    }
     
     /**
      * Gets the singleton instance of the ConfigurationManager.
      * 
      * @return The ConfigurationManager instance
      */
-    public static synchronized ConfigurationManager getInstance() {
-        if (instance == null) {
-            instance = new ConfigurationManager();
-        }
-        return instance;
-    }
-    
-    private ConfigurationManager() {
-        loadConfiguration();
+    public static ConfigurationManager getInstance() {
+        return Holder.INSTANCE;
     }
     
     /**
-     * Loads configuration from a properties file.
-     * Checks multiple locations in order of precedence.
+     * Loads format configuration from the specified path or classpath.
+     *
+     * @param configPath the path to the format configuration file
+     * @return the loaded FormatConfig instance
      */
-    private void loadConfiguration() {
-        // First try loading from specified locations
-        for (String location : CONFIG_LOCATIONS) {
-            Path configPath = Paths.get(location);
-            if (Files.exists(configPath)) {
-                try (InputStream input = new FileInputStream(configPath.toFile())) {
-                    properties.load(input);
-                    log.info("Configuration loaded from: {}", configPath);
-                    loaded = true;
-                    return;
-                } catch (IOException e) {
-                    log.warn("Failed to load configuration from: " + configPath, e);
+    public Configuration loadFormatConfiguration(String configPath) {
+        if (configPath == null) {
+            configPath = DEFAULT_FORMAT_CONFIG_PATH;
+        }
+        
+        File configFile = new File(configPath);
+        if (configFile.exists()) {
+            try (InputStream input = new FileInputStream(configFile)) {
+                ObjectMapper yamlMapper = new ObjectMapper(new YAMLFactory());
+                this.configuration = yamlMapper.readValue(input, Configuration.class);
+                log.info("Loaded format configuration from: {}", configFile.getAbsolutePath());
+                return this.configuration;
+            } catch (Exception e) {
+                log.error("Error loading format configuration from file: " + configPath, e);
+                return loadDefaultFormatConfiguration();
+            }
+        } else {
+            // Try to load from classpath
+            try (InputStream input = getClass().getClassLoader().getResourceAsStream(configPath)) {
+                if (input != null) {
+                    ObjectMapper yamlMapper = new ObjectMapper(new YAMLFactory());
+                    this.configuration = yamlMapper.readValue(input, Configuration.class);
+                    log.info("Loaded format configuration from classpath: {}", configPath);
+                    return this.configuration;
+                } else {
+                    log.warn("Format configuration file not found: {}", configPath);
+                    return loadDefaultFormatConfiguration();
                 }
+            } catch (Exception e) {
+                log.error("Error loading format configuration from classpath: " + configPath, e);
+                return loadDefaultFormatConfiguration();
             }
         }
-        
-        // If no configuration file found, then load from classpath
-        try (InputStream input = getClass().getClassLoader().getResourceAsStream("fido2_config.properties")) {
-            if (input != null) {
-                properties.load(input);
-                log.info("Configuration loaded from classpath");
-                loaded = true;
-                return;
-            }
-        } catch (IOException e) {
-            log.warn("Failed to load configuration from classpath", e);
-        }
-        
-        // If we get here, no configuration was loaded
-        log.info("No configuration file found, using default values");
     }
     
+
+    /**
+     * Loads the default format configuration with predefined values.
+     * This is used when no configuration file is found or when explicitly requested.
+     * 
+     * @return the default FormatConfig instance with predefined format values
+     */
+    private Configuration loadDefaultFormatConfiguration() {
+        Configuration config = new Configuration();
+        
+        Map<String, String> defaultFormat = new HashMap<>();
+        defaultFormat.put("id", "base64url");
+        defaultFormat.put("rawId", "base64url");
+        defaultFormat.put("authenticatorData", "base64url");
+        defaultFormat.put("publicKey", "base64url");
+        defaultFormat.put("attestationObject", "base64url");
+        defaultFormat.put("clientDataJSON", "string");
+        defaultFormat.put("signature", "base64url");
+        defaultFormat.put("userHandle", "base64url");
+        
+        config.setFormat("default", defaultFormat);
+
+        KeystoreConfig keystoreConfig = new KeystoreConfig();
+        keystoreConfig.setPath("fido2_keystore.p12");
+        keystoreConfig.setPassword("changeme");
+        keystoreConfig.setMetadataPath("fido2_keystore_metadata.json");
+        config.setKeystore(keystoreConfig);
+
+        log.info("Loaded default format configuration");
+        this.configuration = config;
+        
+        return config;
+    }
+    
+    /**
+     * Gets the format configuration for the specified format name.
+     * If the format configuration hasn't been loaded yet, it will be loaded first.
+     * If the format is not found, it will return null.
+     * 
+     * @param formatName the name of the format configuration to get
+     * @return the format configuration, or null if not found
+     */
+    public Map<String, String> getFormatConfig(String formatName) {
+        // If formatName is null, return null
+        if (formatName == null) {
+            return null;
+        }
+        
+        // Get the requested format
+        if(configuration.hasFormat(formatName)) {
+            return configuration.getFormat(formatName);
+        }
+        
+        return null;
+    }
+ 
     /**
      * Gets the keystore file path.
      * 
      * @return The keystore file path
      */
     public String getKeystorePath() {
-        return properties.getProperty("keystore.path", DEFAULT_KEYSTORE_PATH);
+        return configuration.getKeystore().getPath();
     }
     
     /**
@@ -103,7 +162,7 @@ public class ConfigurationManager {
      * @return The metadata file path
      */
     public String getMetadataPath() {
-        return properties.getProperty("metadata.path", DEFAULT_METADATA_PATH);
+        return configuration.getKeystore().getMetadataPath();
     }
     
     /**
@@ -112,51 +171,7 @@ public class ConfigurationManager {
      * @return The keystore password
      */
     public String getKeystorePassword() {
-        return properties.getProperty("keystore.password", DEFAULT_KEYSTORE_PASSWORD);
-    }
-    
-    /**
-     * Gets a configuration property.
-     * 
-     * @param key The property key
-     * @param defaultValue The default value if the property is not found
-     * @return The property value, or the default value if not found
-     */
-    public String getProperty(String key, String defaultValue) {
-        return properties.getProperty(key, defaultValue);
-    }
-    
-    /**
-     * Gets a configuration property as an integer.
-     * 
-     * @param key The property key
-     * @param defaultValue The default value if the property is not found or is not a valid integer
-     * @return The property value as an integer, or the default value if not found or not a valid integer
-     */
-    public int getIntProperty(String key, int defaultValue) {
-        String value = properties.getProperty(key);
-        if (value == null) return defaultValue;
-        
-        try {
-            return Integer.parseInt(value);
-        } catch (NumberFormatException e) {
-            log.warn("Invalid integer property: " + key + "=" + value);
-            return defaultValue;
-        }
-    }
-    
-    /**
-     * Gets a configuration property as a boolean.
-     * 
-     * @param key The property key
-     * @param defaultValue The default value if the property is not found
-     * @return The property value as a boolean, or the default value if not found
-     */
-    public boolean getBooleanProperty(String key, boolean defaultValue) {
-        String value = properties.getProperty(key);
-        if (value == null) return defaultValue;
-        
-        return Boolean.parseBoolean(value);
+        return configuration.getKeystore().getPassword();
     }
     
     /**

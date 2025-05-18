@@ -25,8 +25,9 @@ replay_pid*
 
 # Fido2 Keystore & Metadata
 fido2_keystore.p12
-fido2_metadata.json
+fido2_keystore_metadata.json
 
 target/
 .idea/
+.vscode/
 

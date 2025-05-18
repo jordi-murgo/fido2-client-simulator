@@ -7,24 +7,21 @@ import java.security.KeyPair;
 import java.security.KeyStoreException;
 import java.security.PublicKey;
 import java.util.Map;
+import java.util.UUID;
 
 import com.example.storage.CredentialMetadata;
 import com.example.storage.CredentialStore;
 import com.example.storage.KeyStoreManager;
-import com.example.utils.HashUtils;
-import com.example.utils.AuthDataUtils;
-import com.example.utils.PemUtils;
-import com.example.utils.CoseKeyUtils;
-import com.example.utils.EncodingUtils;
+import com.example.utils.*;
 import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.fasterxml.jackson.dataformat.cbor.CBORFactory;
+import com.upokecenter.cbor.CBORObject;
 import com.yubico.webauthn.data.AuthenticatorAttestationResponse;
 import com.yubico.webauthn.data.ByteArray;
 import com.yubico.webauthn.data.COSEAlgorithmIdentifier;
-import com.yubico.webauthn.data.ClientRegistrationExtensionOutputs;
-import com.yubico.webauthn.data.PublicKeyCredential;
 import com.yubico.webauthn.data.PublicKeyCredentialCreationOptions;
 import com.yubico.webauthn.data.PublicKeyCredentialParameters;
 
@@ -37,18 +34,9 @@ import lombok.extern.slf4j.Slf4j;
 public class CreateHandler extends BaseHandler implements CommandHandler {
 
     /**
-     * Handles the incoming request, supporting an optional format parameter for output style.
-     * @param requestJson The JSON string with creation options
-     * @return The JSON response
-     * @throws Exception on error
+     * Zero AAGUID for software authenticator
      */
-    @Override
-    public String handleRequest(String requestJson) throws Exception {
-        // Default to standard format if not provided
-        return handleCreate(requestJson);
-    }
-
-    private static final ByteArray AAGUID = new ByteArray(new byte[16]); // Zero AAGUID for software authenticator
+    private static final ByteArray AAGUID = new ByteArray(new byte[16]);
 
     /**
      * Constructs a CreateHandler.
@@ -59,6 +47,27 @@ public class CreateHandler extends BaseHandler implements CommandHandler {
     public CreateHandler(CredentialStore credentialStore, ObjectMapper jsonMapper, CommandOptions options) {
         super(credentialStore, jsonMapper, options);
     }
+
+
+    /**
+     * Handles the incoming request, using the format specified in options.
+     * @param requestJson The JSON string with creation options
+     * @return The JSON response formatted according to the specified options
+     * @throws Exception if there's an error processing the request
+     */
+    @Override
+    public String handleRequest(String requestJson) throws Exception {
+        log.debug("Handling create request with format: {}", options.getFormat());
+        
+        try {
+            return handleCreate(requestJson);
+        } catch (Exception e) {
+            log.error("Error in create handler: {}", e.getMessage(), e);
+            throw e;
+        }
+    }
+
+
 
     /**
      * Handles the creation of a new FIDO2 credential, returning the PublicKeyCredential as JSON.
@@ -88,95 +97,99 @@ public class CreateHandler extends BaseHandler implements CommandHandler {
             // 5. Create response
             AuthenticatorAttestationResponse response = createAttestationResponse(attestationObject, clientDataJson);
 
-            // --- FORMATTER: Select output style for binary fields (standard, base64, bytes, chrome) ---
-            ResponseFormatter formatter = new ResponseFormatter(this.options.getFormat(), jsonMapper);
+            // Initialize the response formatter with the requested format
+            log.debug("Using response format: {}", formatter.getFormatName());
 
             // Create response node with all expected fields (WebAuthn spec)
             ObjectNode credentialNode = jsonMapper.createObjectNode();
-            // Use formatter for id/rawId
-            JsonNode idNode = formatter.formatBinary(credentialId, "id");
-            if (idNode.isTextual()) credentialNode.put("id", idNode.asText());
-            else credentialNode.set("id", idNode);
-            JsonNode rawIdNode = formatter.formatBinary(credentialId, "rawId");
-            if (rawIdNode.isTextual()) credentialNode.put("rawId", rawIdNode.asText());
-            else credentialNode.set("rawId", rawIdNode);
-            credentialNode.put("type", "public-key");
 
-            // clientExtensionResults at root (with credProps.rk=true)
-            ObjectNode clientExtResults = jsonMapper.createObjectNode();
-            ObjectNode credProps = jsonMapper.createObjectNode();
-            credProps.put("rk", true);
-            clientExtResults.set("credProps", credProps);
-            credentialNode.set("clientExtensionResults", clientExtResults);
-
-            // Build response node with all expected fields (WebAuthn spec)
-            ObjectNode responseNode = jsonMapper.createObjectNode();
-            responseNode.put("clientDataJSON", response.getClientDataJSON().getBase64Url());
-            responseNode.put("attestationObject", response.getAttestationObject().getBase64Url());
-
-            // authenticatorAttachment at root (platform / cross-platform) - Chrome extension
-            credentialNode.put("authenticatorAttachment", "platform");
-
-            // --- Add authenticatorData --- Chrome extension
-            // Extract authenticatorData from attestationObject (CBOR decode)
             try {
-                byte[] attObjBytes = response.getAttestationObject().getBytes();
-                com.fasterxml.jackson.dataformat.cbor.CBORFactory cborFactory = new com.fasterxml.jackson.dataformat.cbor.CBORFactory();
-                com.fasterxml.jackson.databind.ObjectMapper cborMapper = new com.fasterxml.jackson.databind.ObjectMapper(cborFactory);
-                java.util.Map attObjMap = cborMapper.readValue(attObjBytes, java.util.Map.class);
-                byte[] authenticatorData = (byte[]) attObjMap.get("authData");
-                if (authenticatorData != null) {
-                    responseNode.put("authenticatorData", new ByteArray(authenticatorData).getBase64Url());
-                }
-            } catch (Exception e) {
-                // If extraction fails, do not set authenticatorData
-            }
+                // Format ID according to the configuration
+                formatter.formatBinary(credentialNode, "id", credentialId);
+                formatter.formatBinary(credentialNode, "rawId", credentialId);
 
-            /**
-             * publicKey: DER-encoded SubjectPublicKeyInfo, base64 (browser-compatible)
-             * Chrome extension. The publicKey field is not part of the WebAuthn spec.
-             */
-            byte[] derEncoded = keyPair.getPublic().getEncoded();
-            String derBase64 = java.util.Base64.getEncoder().encodeToString(derEncoded);
-            responseNode.put("publicKey", derBase64);
+                credentialNode.put("type", "public-key");
 
-            // --- Add publicKeyAlgorithm --- Chrome extension
-            responseNode.put("publicKeyAlgorithm", selectedAlg.getId());
+                // clientExtensionResults at root (with credProps.rk=true)
+                ObjectNode clientExtResults = jsonMapper.createObjectNode();
+                credentialNode.set("clientExtensionResults", clientExtResults);
 
-            // --- Add transports --- Chrome extension
-            responseNode.putArray("transports").add("internal");
-
-            credentialNode.set("response", responseNode);
-
-            // Crear JSON de respuesta
-            String registrationResponseJson = jsonMapper.writeValueAsString(credentialNode);
-            
-            // 8. Log attestation object details
-            logAttestationObject(registrationResponseJson);
-            
-            // 9. Save metadata
-            saveMetadata(credentialId, registrationResponseJson, options);
-            
-            // 10. Add rawId and return
-            try {
-                return addRawIdToResponse(registrationResponseJson);
-            } catch (UnsupportedOperationException uoe) {
-                uoe.printStackTrace(); // Imprimir el stack trace completo para localizar el origen exacto
-                // Crear respuesta de error con detalles para ayudar en la depuración
-                ObjectNode errorNode = jsonMapper.createObjectNode();
-                errorNode.put("status", "error");
-                errorNode.put("error", "UnsupportedOperationException");
-                errorNode.put("message", uoe.getMessage() != null ? uoe.getMessage() : "No message");
-                errorNode.put("location", "Ocurrió en: " + uoe.getStackTrace()[0]);
+                // Build response node with all expected fields (WebAuthn spec)
+                ObjectNode responseNode = jsonMapper.createObjectNode();
                 
-                return jsonMapper.writeValueAsString(errorNode); // Devolver JSON de error en lugar de lanzar excepción
+                // Format clientDataJSON according to the configuration
+                formatter.formatBinary(responseNode, "clientDataJSON", response.getClientDataJSON());
+
+                // Format attestationObject according to the configuration
+                formatter.formatBinary(responseNode, "attestationObject", response.getAttestationObject());
+
+                // authenticatorAttachment at root (platform / cross-platform) - Chrome extension
+                credentialNode.put("authenticatorAttachment", "platform");
+
+                // Extract and format authenticatorData from attestationObject (CBOR decode)
+                try {
+                    byte[] attObjBytes = response.getAttestationObject().getBytes();
+                    com.fasterxml.jackson.dataformat.cbor.CBORFactory cborFactory = new com.fasterxml.jackson.dataformat.cbor.CBORFactory();
+                    com.fasterxml.jackson.databind.ObjectMapper cborMapper = new com.fasterxml.jackson.databind.ObjectMapper(cborFactory);
+                    Map attObjMap = cborMapper.readValue(attObjBytes, Map.class);
+                    byte[] authenticatorData = (byte[]) attObjMap.get("authData");
+                    if (authenticatorData != null) {
+                        formatter.formatBinary(responseNode, "authenticatorData", authenticatorData);
+                    }
+                } catch (Exception e) {
+                    log.warn("Could not extract authenticatorData from attestation object", e);
+                }
+
+                // Add transports (Chrome extension)
+                responseNode.putArray("transports").add("internal");
+
+                // Add publicKey (DER-encoded SubjectPublicKeyInfo) and algorithm (Chrome extension)
+                try {
+                    // Get the DER-encoded SubjectPublicKeyInfo
+                    byte[] derEncoded = keyPair.getPublic().getEncoded();
+                    
+                    // Add the raw DER bytes to the response (will be base64url encoded by the formatter)
+                    formatter.formatBinary(responseNode, "publicKey", new ByteArray(derEncoded));
+                    
+                    // Add the public key algorithm
+                    responseNode.put("publicKeyAlgorithm", selectedAlg.getId());
+                    
+                    if (log.isDebugEnabled()) {
+                        log.debug("Added public key ({} bytes) to response", derEncoded.length);
+                    }
+                } catch (Exception e) {
+                    log.warn("Could not add public key information to response: {}", e.getMessage());
+                    if (log.isDebugEnabled()) {
+                        log.debug("Public key encoding error", e);
+                    }
+                }
+
+                // Set the response node in the credential node
+                credentialNode.set("response", responseNode);
+                
+                // Convert to JSON string
+                String registrationResponseJson = jsonMapper.writeValueAsString(credentialNode);
+                
+                // Save metadata
+                saveMetadata(credentialId, registrationResponseJson, options);
+                
+                // Log attestation object details
+                if(this.options.isVerbose()) {
+                    logAttestationObject(response.getAttestationObject().getBytes());
+                }
+                
+                return removeNulls(registrationResponseJson);
+
+            } catch (Exception e) {
+                log.error("Error formatting response: {}", e.getMessage(), e);
+                throw new RuntimeException("Failed to format response: " + e.getMessage(), e);
             }
         } catch (IOException | KeyStoreException e) {
-            e.printStackTrace(); // Imprimir el stack trace para depuración
-            throw new Exception("Error durante la creación de credenciales: " + e.getMessage(), e);
+            log.error("Error during credential creation: {}", e.getMessage(), e);
+            throw new Exception("Error during credential creation: " + e.getMessage(), e);
         } catch (Exception ex) {
-            ex.printStackTrace(); // Imprimir cualquier otra excepción
-            throw new Exception("Error inesperado: " + ex.getMessage(), ex);
+            log.error("Unexpected error during credential creation: {}", ex.getMessage(), ex);
+            throw new Exception("Unexpected error: " + ex.getMessage(), ex);
         }
     }
 
@@ -206,10 +219,8 @@ public class CreateHandler extends BaseHandler implements CommandHandler {
             rpIdHash, flags, signCount, AAGUID, credentialId, cosePublicKey);
         
         // Create attestation object as CBOR map with format "none" (no attestation)
-        com.fasterxml.jackson.dataformat.cbor.CBORFactory cborFactory = 
-            new com.fasterxml.jackson.dataformat.cbor.CBORFactory();
-        com.fasterxml.jackson.databind.ObjectMapper cborWriter = 
-            new com.fasterxml.jackson.databind.ObjectMapper(cborFactory);
+        CBORFactory cborFactory = new CBORFactory();
+        ObjectMapper cborWriter = new ObjectMapper(cborFactory);
         
         // Create a map with the required fields for an attestation object
         java.util.Map<String, Object> attestationObject = new java.util.LinkedHashMap<>();
@@ -226,7 +237,7 @@ public class CreateHandler extends BaseHandler implements CommandHandler {
         clientData.put("type", "webauthn.create");
         clientData.put("challenge", options.getChallenge().getBase64Url());
         clientData.put("origin", "https://" + options.getRp().getId());
-        return jsonMapper.writeValueAsString(clientData);
+        return clientData.toString();
     }
 
     /**
@@ -253,51 +264,21 @@ public class CreateHandler extends BaseHandler implements CommandHandler {
         }
     }
 
-    private PublicKeyCredential<AuthenticatorAttestationResponse, ClientRegistrationExtensionOutputs> createCredential(
-            ByteArray credentialId, AuthenticatorAttestationResponse response) {
-        return PublicKeyCredential.<AuthenticatorAttestationResponse, ClientRegistrationExtensionOutputs>builder()
-            .id(credentialId)
-            .response(response)
-            .clientExtensionResults(ClientRegistrationExtensionOutputs.builder().build())
-            .build();
-    }
-
-    private void logAttestationObject(String registrationResponseJson) {
+    private void logAttestationObject(byte[] attestationBytes) {
         try {
-            ObjectNode responseNode = jsonMapper.readTree(registrationResponseJson).get("response").deepCopy();
-            String attestationB64 = responseNode.get("attestationObject").asText();
-            byte[] attestationBytes = java.util.Base64.getUrlDecoder().decode(attestationB64);
+            CBORFactory cborFactory = new CBORFactory();
+            ObjectMapper cborReader = new ObjectMapper(cborFactory);
+            JsonNode cborData = cborReader.readTree(attestationBytes);
             
-            com.fasterxml.jackson.dataformat.cbor.CBORFactory cborFactory = new com.fasterxml.jackson.dataformat.cbor.CBORFactory();
-            com.fasterxml.jackson.databind.ObjectMapper cborReader = new com.fasterxml.jackson.databind.ObjectMapper(cborFactory);
-            com.fasterxml.jackson.databind.JsonNode cborData = cborReader.readTree(attestationBytes);
-            
-            log.debug("\n" +
-                "=== AttestationObject (decoded) ===\n" +
-                "fmt: {}\n" +
-                "authData (b64Url): {}\n\n" +
-                "----- AuthData Structure -----\n" +
-                "{}\n" +
-                "------------------------------\n" +
-                "attStmt: {}\n" +
-                "===================================",
-                cborData.get("fmt").asText(),
-                EncodingUtils.base64UrlEncode(cborData.get("authData").binaryValue()),
-                AuthDataUtils.decodeAuthData(cborData.get("authData").binaryValue()),
-                cborData.get("attStmt"));
+            log.debug("AttestationObject (decoded):\n{}", cborData.toPrettyString());
+
+            log.debug("AuthData (decoded):\n{}", decodeAuthData(cborData.get("authData").binaryValue()));
 
         } catch (Exception e) {
             log.warn("Could not decode attestationObject: {}", e.getMessage());
         }
     }
 
-    /**
-     * Saves credential metadata.
-     * @param credentialId The credential ID
-     * @param registrationResponseJson The registration response JSON
-     * @param options The creation options
-     * @throws KeyStoreException if an error occurs with the keystore
-     */
     /**
      * Saves credential metadata.
      * @param credentialId The credential ID
@@ -358,5 +339,125 @@ public class CreateHandler extends BaseHandler implements CommandHandler {
         System.arraycopy(coseBytes, 0, out, offset, coseBytes.length);
         
         return out;
+    }
+
+
+    /**
+     * Decodes the authenticator data and returns a human-readable representation.
+     * @param authData The raw authenticator data bytes
+     * @return A string containing the decoded components
+     */
+    public String decodeAuthData(byte[] authData) {
+        if (authData == null || authData.length < 37) {
+            return "Invalid authData (too short)";
+        }
+
+        // Extract rpIdHash (first 32 bytes)
+        byte[] rpIdHash = new byte[32];
+        System.arraycopy(authData, 0, rpIdHash, 0, 32);
+        
+        // Extract flags (1 byte)
+        byte flags = authData[32];
+        boolean userPresent = (flags & 0x01) != 0;
+        boolean userVerified = (flags & 0x04) != 0;
+        boolean attestedCredentialData = (flags & 0x40) != 0;
+        boolean extensionDataIncluded = (flags & 0x80) != 0;
+        
+        // Extract signCount (4 bytes)
+        int signCount = ByteBuffer.wrap(authData, 33, 4).getInt();
+        ObjectNode authDataNode = jsonMapper.createObjectNode();
+
+        authDataNode.put("rpIdHash", new ByteArray(rpIdHash).getHex());
+        authDataNode.put("flags", String.format("%02X", flags));
+        authDataNode.put("userPresent", userPresent ? "1" : "0");
+        authDataNode.put("userVerified", userVerified ? "1" : "0");
+        authDataNode.put("attestedCredentialData", attestedCredentialData ? "1" : "0");
+        authDataNode.put("extensionDataIncluded", extensionDataIncluded ? "1" : "0");
+        authDataNode.put("signCount", signCount);
+        
+        // If attested credential data is present, decode it
+        if (attestedCredentialData && authData.length >= 55) {
+            // Extract AAGUID (16 bytes)
+            byte[] aaguid = new byte[16];
+            System.arraycopy(authData, 37, aaguid, 0, 16);
+            
+            // Format AAGUID as UUID
+            UUID aaguidUuid = getUuidFromBytes(aaguid);
+            
+            // Extract credentialIdLength (2 bytes)
+            int credentialIdLength = ((authData[53] & 0xFF) << 8) | (authData[54] & 0xFF);
+            
+            authDataNode.put("aaguid", aaguidUuid.toString());
+            authDataNode.put("credentialIdLength", credentialIdLength);
+            
+            // Extract credentialId (variable length)
+            if (authData.length >= 55 + credentialIdLength) {
+                byte[] credentialId = new byte[credentialIdLength];
+                System.arraycopy(authData, 55, credentialId, 0, credentialIdLength);
+                authDataNode.put("credentialId", EncodingUtils.base64UrlEncode(credentialId));
+                
+                // The rest is CBOR-encoded public key
+                int publicKeyOffset = 55 + credentialIdLength;
+                if (authData.length > publicKeyOffset) {
+                    byte[] publicKeyCbor = new byte[authData.length - publicKeyOffset];
+                    System.arraycopy(authData, publicKeyOffset, publicKeyCbor, 0, publicKeyCbor.length);
+                    // Decode CBOR to JSON and convert to DER format
+                    try {
+                        // Decode the CBOR data to a Map
+                        CBORObject cborObj = CBORObject.DecodeFromBytes(publicKeyCbor);
+                        
+                        Map<Object, Object> coseKey = CborUtils.decodeToMap(new ByteArray(cborObj.EncodeToBytes()));
+
+                        // Add the raw COSE key to the output
+                        ObjectNode keyNode = jsonMapper.createObjectNode();
+                        keyNode.put("cbor", EncodingUtils.base64UrlEncode(publicKeyCbor));
+                        
+                        // Try to convert to DER format
+                        try {
+                            byte[] derEncoded = CoseKeyUtils.coseToDer(coseKey);
+                            keyNode.put("der", EncodingUtils.base64UrlEncode(derEncoded));
+                            
+                            // Add key details based on type
+                            int keyType = ((Number) coseKey.get(1)).intValue();
+
+                            if (keyType == 2) { // EC2 key
+                                keyNode.put("keyType", "EC2");
+                                keyNode.put("crv", coseKey.get(-1).toString());
+                                keyNode.put("x", EncodingUtils.base64UrlEncode((byte[]) coseKey.get(-2)));
+                                keyNode.put("y", EncodingUtils.base64UrlEncode((byte[]) coseKey.get(-3)));
+                            } else if (keyType == 3) { // RSA key
+                                keyNode.put("keyType", "RSA");
+                                keyNode.put("n", EncodingUtils.base64UrlEncode((byte[]) coseKey.get(-1)));
+                                keyNode.put("e", EncodingUtils.base64UrlEncode((byte[]) coseKey.get(-2)));
+                            }
+                            
+                        } catch (Exception e) {
+                            log.warn("Failed to convert COSE to DER: {}", e.getMessage());
+                            keyNode.put("error", "Failed to convert to DER: " + e.getMessage());
+                        }
+                        
+                        // Add the public key to the response
+                        authDataNode.set("credentialPublicKey", keyNode);
+                        
+                    } catch (Exception e) {
+                        log.warn("Failed to decode publicKeyCbor: {}", e.getMessage());
+                        authDataNode.put("credentialPublicKey", EncodingUtils.base64UrlEncode(publicKeyCbor));
+                        authDataNode.put("decodingError", "Failed to decode publicKeyCbor: " + e.getMessage());
+                    }
+                }
+            }
+        }
+        
+        return authDataNode.toPrettyString();
+    }
+    
+    /**
+     * Converts a byte array to a UUID.
+     */
+    private UUID getUuidFromBytes(byte[] bytes) {
+        ByteBuffer bb = ByteBuffer.wrap(bytes);
+        long high = bb.getLong();
+        long low = bb.getLong();
+        return new UUID(high, low);
     }
 }

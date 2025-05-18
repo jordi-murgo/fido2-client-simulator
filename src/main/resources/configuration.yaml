@@ -1,0 +1,83 @@
+# ============================================================
+# FIDO2 Client Simulator - Configuration
+# ============================================================
+
+keystore:
+  path: fido2_keystore.p12
+  password: changeme
+  metadataPath: fido2_keystore_metadata.json
+
+# Logging level
+logLevel: INFO
+
+# Output formats
+
+# This section defines different output formats for the FIDO2 Client Simulator.
+# Each format specifies how binary fields should be encoded in the output.
+#
+# Available format options for each field:
+#   - base64:      Standard Base64 encoding (with +/=)
+#   - base64url:   URL-safe Base64 encoding (with -_)
+#   - bytearray:   Array of signed bytes (-128 to 127)
+#   - intarray:    Array of unsigned integers (0-255)
+#   - string:      Try to decode as UTF-8 text (falls back to base64url if not valid text)
+#   - null:        Do not include the field in the output
+#
+# Format names are case-insensitive and can include hyphens or underscores.
+#
+# To use a format, specify its name with the --format option when running the simulator.
+# Example: --format=default
+
+formats:
+  # -----------------------------------------------------------------
+  # Default format - uses base64url for binary fields (WebAuthn standard)
+  # -----------------------------------------------------------------
+  default:
+    id: base64url            
+    rawId: base64url          
+    authenticatorData: base64url  
+    clientDataJSON: base64url    
+    signature: base64url
+    userHandle: base64url
+    attestationObject: base64url  
+    publicKey: base64url
+    
+    
+  # -----------------------------------------------------------------
+  # Bytes format - outputs binary data as byte arrays [-128 to 127]
+  # -------------------------------------------------------------------
+  bytes:
+    id: base64url            
+    rawId: byteArray          
+    authenticatorData: byteArray  
+    clientDataJSON: string    
+    signature: byteArray
+    userHandle: base64url
+    attestationObject: byteArray  
+    publicKey: byteArray
+   
+  # -----------------------------------------------------------------
+  # Ints format - outputs binary data as arrays of unsigned integers [0 to 255]
+  # -------------------------------------------------------------------
+  ints:
+    id: base64url            
+    rawId: intArray          
+    authenticatorData: intArray  
+    clientDataJSON: string    
+    signature: intArray
+    userHandle: base64url
+    attestationObject: intArray  
+    publicKey: intArray
+
+  ping:
+    id: 'null' 
+    rawId: 'base64url'
+    clientDataJSON: 'string'
+    attestationObject: 'byteArray'
+    authenticatorData: 'byteArray'
+    publicKey: 'null'
+    publicKeyAlgorithm: 'null'
+    signature: 'byteArray'
+    userHandle: 'null'
+
+
