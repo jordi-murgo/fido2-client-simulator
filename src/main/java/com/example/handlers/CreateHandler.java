@@ -6,16 +6,26 @@ import java.nio.ByteBuffer;
 import java.security.KeyPair;
 import java.security.KeyStoreException;
 import java.security.PublicKey;
+import java.util.Base64;
 import java.util.Map;
 import java.util.UUID;
 
 import com.example.storage.CredentialMetadata;
 import com.example.storage.CredentialStore;
 import com.example.storage.KeyStoreManager;
-import com.example.utils.*;
+import com.example.utils.CborUtils;
+import com.example.utils.CoseKeyUtils;
+import com.example.utils.EncodingUtils;
+import com.example.utils.HashUtils;
+import com.example.utils.PemUtils;
+import com.example.utils.ResponseFormatter;
+import com.yubico.webauthn.data.ByteArray;
+import com.yubico.webauthn.data.PublicKeyCredentialCreationOptions;
+
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.dataformat.cbor.CBORFactory;
 import com.upokecenter.cbor.CBORObject;
@@ -77,8 +87,46 @@ public class CreateHandler extends BaseHandler implements CommandHandler {
      */
     public String handleCreate(String optionsJson) throws Exception {
         try {
-            optionsJson = tryDecodeBase64Json(optionsJson);
-            PublicKeyCredentialCreationOptions options = jsonMapper.readValue(optionsJson, PublicKeyCredentialCreationOptions.class);
+            // Log the raw input first
+            log.debug("Raw input optionsJson: {}", optionsJson);
+            
+            // Try to decode base64 if needed
+            String decodedOptions = EncodingUtils.tryDecodeBase64Json(optionsJson);
+            log.debug("After base64 decode: {}", decodedOptions);
+            
+            // Parse the JSON into a tree first to inspect the challenge
+            JsonNode rootNode = jsonMapper.readTree(decodedOptions);
+            String originalChallenge = rootNode.path("challenge").asText();
+            log.debug("Original challenge from JSON: {}", originalChallenge);
+            
+            // Now parse the full options object
+            PublicKeyCredentialCreationOptions options = jsonMapper.readValue(decodedOptions, PublicKeyCredentialCreationOptions.class);
+            
+            // We'll use the original challenge as-is
+            
+            // Log the parsed options and the challenge
+            log.debug("Parsed options: {}", options.toJson());
+            log.debug("Challenge bytes (hex): {}", bytesToHex(options.getChallenge().getBytes()));
+            log.debug("Challenge base64url: {}", options.getChallenge().getBase64Url());
+            
+            // Replace the challenge in the options with the original one
+            if (!originalChallenge.equals(options.getChallenge().getBase64Url())) {
+                log.warn("Challenge mismatch! Original: {}, Parsed: {}", 
+                       originalChallenge, options.getChallenge().getBase64Url());
+                // Create a new challenge object with the original value
+                options = PublicKeyCredentialCreationOptions.builder()
+                    .rp(options.getRp())
+                    .user(options.getUser())
+                    .challenge(new ByteArray(Base64.getUrlDecoder().decode(originalChallenge)))
+                    .pubKeyCredParams(options.getPubKeyCredParams())
+                    .timeout(options.getTimeout())
+                    .excludeCredentials(options.getExcludeCredentials())
+                    .authenticatorSelection(options.getAuthenticatorSelection())
+                    .attestation(options.getAttestation())
+                    .extensions(options.getExtensions())
+                    .build();
+            }
+
             validateOptions(options);
     
             // 1. Select an algorithm (first supported)
@@ -96,7 +144,12 @@ public class CreateHandler extends BaseHandler implements CommandHandler {
 
             // 5. Create response
             AuthenticatorAttestationResponse response = createAttestationResponse(attestationObject, clientDataJson);
-
+            
+            // Log attestation object details
+            if(this.options.isVerbose()) {
+                logAttestationObject(response.getAttestationObject().getBytes());
+            }
+            
             // Initialize the response formatter with the requested format
             log.debug("Using response format: {}", formatter.getFormatName());
 
@@ -105,26 +158,26 @@ public class CreateHandler extends BaseHandler implements CommandHandler {
 
             try {
                 // Format ID according to the configuration
-                formatter.formatBinary(credentialNode, "id", credentialId);
-                formatter.formatBinary(credentialNode, "rawId", credentialId);
+                formatter.formatBytes(credentialNode, "id", credentialId);
+                formatter.formatBytes(credentialNode, "rawId", credentialId);
 
-                credentialNode.put("type", "public-key");
+                formatter.formatString(credentialNode,"type", "public-key");
 
                 // clientExtensionResults at root (with credProps.rk=true)
                 ObjectNode clientExtResults = jsonMapper.createObjectNode();
-                credentialNode.set("clientExtensionResults", clientExtResults);
+                formatter.formatObject(clientExtResults,"clientExtensionResults", clientExtResults);
 
                 // Build response node with all expected fields (WebAuthn spec)
                 ObjectNode responseNode = jsonMapper.createObjectNode();
                 
                 // Format clientDataJSON according to the configuration
-                formatter.formatBinary(responseNode, "clientDataJSON", response.getClientDataJSON());
+                formatter.formatBytes(responseNode, "clientDataJSON", response.getClientDataJSON());
 
                 // Format attestationObject according to the configuration
-                formatter.formatBinary(responseNode, "attestationObject", response.getAttestationObject());
+                formatter.formatBytes(responseNode, "attestationObject", response.getAttestationObject());
 
                 // authenticatorAttachment at root (platform / cross-platform) - Chrome extension
-                credentialNode.put("authenticatorAttachment", "platform");
+                formatter.formatString(credentialNode,"authenticatorAttachment", "platform");
 
                 // Extract and format authenticatorData from attestationObject (CBOR decode)
                 try {
@@ -134,14 +187,16 @@ public class CreateHandler extends BaseHandler implements CommandHandler {
                     Map attObjMap = cborMapper.readValue(attObjBytes, Map.class);
                     byte[] authenticatorData = (byte[]) attObjMap.get("authData");
                     if (authenticatorData != null) {
-                        formatter.formatBinary(responseNode, "authenticatorData", authenticatorData);
+                        formatter.formatBytes(responseNode, "authenticatorData", authenticatorData);
                     }
                 } catch (Exception e) {
                     log.warn("Could not extract authenticatorData from attestation object", e);
                 }
 
                 // Add transports (Chrome extension)
-                responseNode.putArray("transports").add("internal");
+                ArrayNode transport = jsonMapper.createArrayNode();
+                transport.add("internal");
+                formatter.formatObject(responseNode,"transports", transport);
 
                 // Add publicKey (DER-encoded SubjectPublicKeyInfo) and algorithm (Chrome extension)
                 try {
@@ -149,10 +204,10 @@ public class CreateHandler extends BaseHandler implements CommandHandler {
                     byte[] derEncoded = keyPair.getPublic().getEncoded();
                     
                     // Add the raw DER bytes to the response (will be base64url encoded by the formatter)
-                    formatter.formatBinary(responseNode, "publicKey", new ByteArray(derEncoded));
+                    formatter.formatBytes(responseNode, "publicKey", derEncoded);
                     
                     // Add the public key algorithm
-                    responseNode.put("publicKeyAlgorithm", selectedAlg.getId());
+                    formatter.formatNumber(responseNode, "publicKeyAlgorithm", selectedAlg.getId());
                     
                     if (log.isDebugEnabled()) {
                         log.debug("Added public key ({} bytes) to response", derEncoded.length);
@@ -165,19 +220,15 @@ public class CreateHandler extends BaseHandler implements CommandHandler {
                 }
 
                 // Set the response node in the credential node
-                credentialNode.set("response", responseNode);
+                formatter.formatObject(credentialNode,"response", responseNode);
                 
                 // Convert to JSON string
-                String registrationResponseJson = jsonMapper.writeValueAsString(credentialNode);
+                String registrationResponseJson = credentialNode.toString();
                 
                 // Save metadata
                 saveMetadata(credentialId, registrationResponseJson, options);
                 
-                // Log attestation object details
-                if(this.options.isVerbose()) {
-                    logAttestationObject(response.getAttestationObject().getBytes());
-                }
-                
+
                 return removeNulls(registrationResponseJson);
 
             } catch (Exception e) {
@@ -235,11 +286,44 @@ public class CreateHandler extends BaseHandler implements CommandHandler {
     private String createClientDataJson(PublicKeyCredentialCreationOptions options) throws JsonProcessingException {
         ObjectNode clientData = jsonMapper.createObjectNode();
         clientData.put("type", "webauthn.create");
-        clientData.put("challenge", options.getChallenge().getBase64Url());
+        
+        // Get the challenge bytes directly from the options
+        String base64UrlChallenge = options.getChallenge().getBase64Url();
+        log.debug("Using original base64url challenge from options: {}", base64UrlChallenge);
+        
+        // Verify the challenge can be decoded and re-encoded to the same value
+        byte[] decodedChallenge = Base64.getUrlDecoder().decode(base64UrlChallenge);
+        String reencodedChallenge = Base64.getUrlEncoder().withoutPadding().encodeToString(decodedChallenge);
+        
+        if (!base64UrlChallenge.equals(reencodedChallenge)) {
+            log.warn("Challenge re-encoding mismatch! Original: {}, Re-encoded: {}", 
+                   base64UrlChallenge, reencodedChallenge);
+            // Use the re-encoded version to ensure it's valid
+            base64UrlChallenge = reencodedChallenge;
+        }
+        
+        // Add challenge and origin to the client data
+        clientData.put("challenge", base64UrlChallenge);
         clientData.put("origin", "https://" + options.getRp().getId());
-        return clientData.toString();
+        
+        // Create the JSON string
+        String json = clientData.toString();
+        log.debug("Final client data JSON: {}", json);
+        
+        return json;
     }
 
+    /**
+     * Utility method to convert bytes to hex string for debugging
+     */
+    private String bytesToHex(byte[] bytes) {
+        StringBuilder sb = new StringBuilder();
+        for (byte b : bytes) {
+            sb.append(String.format("%02x", b));
+        }
+        return sb.toString();
+    }
+    
     /**
      * Creates an AuthenticatorAttestationResponse from attestation object and client data JSON.
      * @param attestationObject The attestation object bytes

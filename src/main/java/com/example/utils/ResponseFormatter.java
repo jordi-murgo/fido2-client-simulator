@@ -73,21 +73,7 @@ public class ResponseFormatter {
         return options.getFormat();
     }
 
-    /**
-     * Formats binary data according to the configured format for the specified field.
-     * This method accepts a byte array as input.
-     * 
-     * @param parent The parent node to which the formatted data will be added
-     * @param fieldName The name of the field being formatted (e.g., "id", "rawId", "authenticatorData")
-     * @param data The binary data to format as a byte array
-     * @return The ResponseFormatter instance for method chaining
-     */
-    public ResponseFormatter formatBinary(ObjectNode parent, String fieldName, byte[] data) {
-        if (data == null) {
-            return this;
-        }
-        return formatBinary(parent, fieldName, new ByteArray(data));
-    }
+
     
     /**
      * Formats binary data according to the configured format for the specified field.
@@ -98,25 +84,32 @@ public class ResponseFormatter {
      * @param data The binary data to format as a String
      * @return The ResponseFormatter instance for method chaining
      */
-    public ResponseFormatter formatBinary(ObjectNode parent, String fieldName, String data) {
+    public ResponseFormatter formatString(ObjectNode parent, String fieldName, String data) {
+        JsonNode objectNode = data != null ? formatBytes(new ByteArray(data.getBytes()), fieldName, "string") : JsonNodeFactory.instance.nullNode();
+        if (objectNode.isTextual()) {
+            parent.put(fieldName, objectNode.asText());
+        } else {
+            parent.set(fieldName, objectNode);
+        }
+        return this;
+    }
+
+    public ResponseFormatter formatNumber(ObjectNode parent, String fieldName, Long data) {
         if (data == null) {
             return this;
         }
-        return formatBinary(parent, fieldName, data.getBytes(StandardCharsets.UTF_8));
-    }
 
-    public ResponseFormatter formatBinary(ObjectNode parent, String fieldName, long data) {
         String format = this.formatConfig.get(fieldName);
         if (format == null || format.trim().isEmpty()) {
             format = "number";
         } 
 
         format = format.trim().toLowerCase();
-        log.debug("Formatting field '{}' as '{}'", fieldName, format);
+        log.debug("Formatting number field '{}' as '{}'", fieldName, format);
         
         switch (format) {
             case "number":
-                parent.put(fieldName, data);
+                parent.set(fieldName, JsonNodeFactory.instance.numberNode(data));
                 break;
             case "null":
                 parent.set(fieldName, JsonNodeFactory.instance.nullNode());
@@ -136,6 +129,65 @@ public class ResponseFormatter {
         return this;
     }
 
+    /**
+     * Formats a JSON object according to the configured format for the specified field.
+     * 
+     * @param parent The parent node to which the formatted data will be added
+     * @param fieldName The name of the field being formatted
+     * @param data The JSON object to format
+     * @return The ResponseFormatter instance for method chaining
+     */
+    public ResponseFormatter formatObject(ObjectNode parent, String fieldName, JsonNode data) {
+        if (data == null) {
+            return this;
+        }
+
+        String format = this.formatConfig.get(fieldName);
+        if (format == null || format.trim().isEmpty()) {
+            format = "object";
+        }
+
+        format = format.trim().toLowerCase();
+        log.debug("Formatting object field '{}' as '{}'", fieldName, format);
+
+        switch (format) {
+            case "object":
+                parent.set(fieldName, data);
+                break;
+            case "null":
+                parent.set(fieldName, JsonNodeFactory.instance.nullNode());
+                break;
+            case "string":
+                parent.put(fieldName, data.toString());
+                break;
+            case "base64url":
+                parent.put(fieldName, java.util.Base64.getUrlEncoder().encodeToString(data.toString().getBytes()));
+                break;
+            default:
+                log.warn("Unknown format '{}', using object", format);
+                parent.set(fieldName, data);
+                break;
+        }
+
+        return this;
+    }
+
+    /**
+     * Formats binary data according to the configured format for the specified field.
+     * This method accepts a byte array as input.
+     *
+     * @param parent The parent node to which the formatted data will be added
+     * @param fieldName The name of the field being formatted (e.g., "id", "rawId", "authenticatorData")
+     * @param data The binary data to format as a byte array
+     * @return The ResponseFormatter instance for method chaining
+     */
+    public ResponseFormatter formatBytes(ObjectNode parent, String fieldName, byte[] data) {
+        if (data == null) {
+            return this;
+        }
+        return formatBytes(parent, fieldName, new ByteArray(data));
+    }
+
 
     /**
      * Formats binary data according to the configured format for the specified field.
@@ -146,8 +198,8 @@ public class ResponseFormatter {
      * @param data The binary data to format as a ByteArray
      * @return The ResponseFormatter instance for method chaining
      */
-    public ResponseFormatter formatBinary(ObjectNode parent, String fieldName, ByteArray data) {
-        JsonNode objectNode = data != null ? formatBinary(data, fieldName) : JsonNodeFactory.instance.nullNode();
+    public ResponseFormatter formatBytes(ObjectNode parent, String fieldName, ByteArray data) {
+        JsonNode objectNode = data != null ? formatBytes(data, fieldName) : JsonNodeFactory.instance.nullNode();
         if (objectNode.isTextual()) {
             parent.put(fieldName, objectNode.asText());
         } else {
@@ -164,7 +216,11 @@ public class ResponseFormatter {
      * @param fieldName The name of the field being formatted (e.g., "id", "rawId", "authenticatorData")
      * @return A JsonNode containing the formatted data
      */
-    private JsonNode formatBinary(ByteArray data, String fieldName) {
+    private JsonNode formatBytes(ByteArray data, String fieldName) {
+        return formatBytes(data, fieldName, "base64url");
+    }
+    
+    private JsonNode formatBytes(ByteArray data, String fieldName, String defaultFormat) {
         if (data == null) {
             return JsonNodeFactory.instance.nullNode();
         }
@@ -173,15 +229,15 @@ public class ResponseFormatter {
         
         // Validate format
         if (format == null || format.trim().isEmpty()) {
-            log.debug("No format specified for field '{}', using base64url", fieldName);
-            format = "base64url";
+            log.debug("No format specified for field '{}', using {}", fieldName, defaultFormat);
+            format = defaultFormat.toLowerCase();
         } else {
             format = format.trim().toLowerCase();
             log.debug("Formatting field '{}' as '{}'", fieldName, format);
         }
         
         try {
-            switch (format.toLowerCase()) {
+            switch (format) {
                 case "base64":
                     return JsonNodeFactory.instance.textNode(data.getBase64());
                     
@@ -254,30 +310,4 @@ public class ResponseFormatter {
         }
         return array;
     }
-    
-    /**
-     * Formats a JSON response string according to the configured format.
-     * @param jsonString The JSON string to format
-     * @return The formatted JSON string
-     */
-    public String formatResponse(String jsonString) {
-        try {
-            // Parse the JSON string to a JsonNode
-            JsonNode jsonNode = jsonMapper.readTree(jsonString);
-            
-            // Format the JSON with pretty printing if enabled
-            if (options.isPrettyPrint()) {
-                log.debug("Pretty printing JSON response: {}", jsonNode.toString());
-                return jsonMapper.writerWithDefaultPrettyPrinter().writeValueAsString(jsonNode);
-            } else {
-                log.debug("JSON response: {}", jsonNode.toString());
-                return jsonNode.toString();
-            }
-        } catch (Exception e) {
-            log.error("Error formatting JSON response: {}", e.getMessage(), e);
-            return jsonString; // Return original string if formatting fails
-        }
-    }
- 
-
 }

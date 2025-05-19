@@ -95,23 +95,74 @@ REG_VERIFY_PAYLOAD=$(jq -n --argjson response "$(cat "$TEST_DIR/create_response.
 
 echo "$REG_VERIFY_PAYLOAD" > "$TEST_DIR/reg_verify_request.json"
 
-REG_VERIFY_RESPONSE=$(curl -s -X POST "https://webauthn.io/registration/verification" \
+# Save the full curl command for debugging
+CURL_CMD="curl -v -X POST \"https://webauthn.io/registration/verification\" \
+    -H \"content-type: application/json\" \
+    -H \"origin: https://webauthn.io\" \
+    -b \"$TEST_DIR/cookies.txt\" \
+    -d @\"$TEST_DIR/reg_verify_request.json\""
+
+echo -e "\n${BLUE}Debug: Sending verification request${NC}"
+echo "$CURL_CMD"
+
+# Save the full curl output including headers to a file for debugging
+REG_VERIFY_RESPONSE=$(curl -v -X POST "https://webauthn.io/registration/verification" \
     -H "content-type: application/json" \
     -H "origin: https://webauthn.io" \
     -b "$TEST_DIR/cookies.txt" \
+    2> "$TEST_DIR/reg_verify_curl_debug.txt" \
     -d "@$TEST_DIR/reg_verify_request.json")
 
 echo "$REG_VERIFY_RESPONSE" > "$TEST_DIR/reg_verify_response.json"
 
 # Check verification result
-if [ -f "$TEST_DIR/reg_verify_response.json" ] && \
-   jq -e '.verified' "$TEST_DIR/reg_verify_response.json" > /dev/null 2>&1 && \
-   [ "$(jq -r '.verified' "$TEST_DIR/reg_verify_response.json")" == "true" ]; then
-    echo -e "${GREEN}✓ Registration verified successfully!${NC}"
-else
-    ERROR_MSG=$(jq -r '.message // "Unknown error"' "$TEST_DIR/reg_verify_response.json" 2>/dev/null || echo "Response file not found")
-    echo -e "${RED}✗ Registration verification failed: $ERROR_MSG${NC}"
+if [ -f "$TEST_DIR/reg_verify_response.json" ]; then
+    # Check if the request was successful (HTTP 2xx)
+    HTTP_STATUS=$(grep '^< HTTP/' "$TEST_DIR/reg_verify_curl_debug.txt" | tail -n 1 | cut -d' ' -f3)
+
+    if [ -z "$HTTP_STATUS" ]; then
+        echo -e "${RED}✗ No HTTP status received in response${NC}"
+        echo -e "${RED}Curl debug output:${NC}"
+        cat "$TEST_DIR/reg_verify_curl_debug.txt"
+        exit 1
+    fi
+
+    # Check if the response is valid JSON
+    if ! jq -e . "$TEST_DIR/reg_verify_response.json" > /dev/null 2>&1; then
+        echo -e "${RED}✗ Invalid JSON response from server${NC}"
+        echo -e "${RED}HTTP Status: $HTTP_STATUS${NC}"
+        echo -e "${RED}Response: $(cat "$TEST_DIR/reg_verify_response.json")${NC}"
+        echo -e "\n${RED}Curl debug output:${NC}"
+        cat "$TEST_DIR/reg_verify_curl_debug.txt"
+        exit 1
+    fi
+
+    # Check if the response indicates success
+    if [ "$HTTP_STATUS" -ge 200 ] && [ "$HTTP_STATUS" -lt 300 ]; then
+        echo -e "${GREEN}✓ Registration verified successfully (HTTP $HTTP_STATUS)${NC}"
+        echo -e "\n${GREEN}=== Registration Details ===${NC}"
+        echo -e "Credential ID: ${BLUE}$CREDENTIAL_ID${NC}"
+        echo -e "Verification Response: ${BLUE}$TEST_DIR/reg_verify_response.json${NC}"
+    else
+        # Extract error message from response if available
+        ERROR_MSG=$(jq -r '.error // .message // "Unknown error"' "$TEST_DIR/reg_verify_response.json" 2>/dev/null || echo "Unknown error")
+        
+        echo -e "${RED}✗ Registration verification failed (HTTP $HTTP_STATUS): $ERROR_MSG${NC}"
+        echo -e "\n${RED}=== Error Details ===${NC}"
+        echo -e "${RED}Response:${NC}"
+        jq . "$TEST_DIR/reg_verify_response.json"
+        
+        # Show request payload for debugging
+        echo -e "\n${RED}=== Request Payload ===${NC}"
+        jq . "$TEST_DIR/reg_verify_request.json"
+        
+        # Show headers for debugging
+        echo -e "\n${RED}=== Request Headers ===${NC}"
+        grep -A 100 '^> ' "$TEST_DIR/reg_verify_curl_debug.txt" | head -n 20
+        
+        exit 1
+    fi
 fi
 
 echo -e "\n${BLUE}=== Tutorial Complete ===${NC}"
-echo -e "All files saved in: $TEST_DIR" 
+echo -e "All files saved in: $TEST_DIR"

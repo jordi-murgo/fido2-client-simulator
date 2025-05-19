@@ -5,6 +5,7 @@ import java.util.*;
 import com.example.config.CommandOptions;
 import com.example.storage.CredentialStore;
 import com.example.utils.EncodingUtils;
+import com.example.utils.Fido2JacksonModule;
 import com.example.utils.ResponseFormatter;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -44,8 +45,16 @@ public abstract class BaseHandler {
     /**
      * Configures the ObjectMapper with common settings.
      * <p>
-     * This method sets up the ObjectMapper to exclude null values from serialization
-     * and configures pretty printing if the prettyPrint option is enabled.
+     * This method sets up the ObjectMapper to:
+     * <ul>
+     *   <li>Exclude null values from serialization</li>
+     *   <li>Configure pretty printing if enabled</li>
+     *   <li>Register custom deserializers for WebAuthn data types</li>
+     * </ul>
+     * </p>
+     * <p>
+     * The custom deserializer support handles both standard base64url encoded strings
+     * and arrays of bytes (as used by providers like PingOne).
      * </p>
      */
     protected void configureObjectMapper() {
@@ -58,6 +67,13 @@ public abstract class BaseHandler {
         } else {
             this.jsonMapper.disable(SerializationFeature.INDENT_OUTPUT);
         }
+        
+        // Register custom module for handling different WebAuthn data formats
+        // This allows deserializing ByteArray from both base64url strings and
+        // arrays of bytes (like in PingOne format)
+        this.jsonMapper.registerModule(new Fido2JacksonModule());
+        
+        log.debug("ObjectMapper configured with Fido2JacksonModule for flexible WebAuthn format support");
     }
     
     /**
@@ -158,31 +174,5 @@ public abstract class BaseHandler {
         return options;
     }
 
-    /**
-     * Attempts to decode a potentially Base64-encoded JSON string. This method will try:
-     * 1. URL-safe Base64 decoding
-     * 2. Standard Base64 decoding
-     * 3. Return the original string if both decode attempts fail
-     *
-     * This is useful for handling WebAuthn data that might be Base64-encoded when passing
-     * between systems or through environments that might interfere with JSON formatting.
-     *
-     * @param potentiallyEncodedJson A string that may be Base64 encoded JSON
-     * @return The decoded JSON string or the original string if not Base64 encoded
-     */
-    public static String tryDecodeBase64Json(String potentiallyEncodedJson) {
-        try {
-            // Try to decode the options JSON as a Base64 URL string
-            return new String(EncodingUtils.base64UrlDecode(potentiallyEncodedJson));
-        } catch (Exception e) {
-            try {
-                // Try to decode the options JSON as a standard Base64 string
-                return new String(EncodingUtils.base64Decode(potentiallyEncodedJson));
-            } catch (Exception e2) {
-                // If it's not a Base64 string, just return it as is
-                return potentiallyEncodedJson;
-            }
-        }
-    }
 
 } 

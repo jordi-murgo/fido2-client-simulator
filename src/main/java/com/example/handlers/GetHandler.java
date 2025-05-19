@@ -16,6 +16,7 @@ import java.util.stream.Collectors;
 
 import com.example.storage.CredentialMetadata;
 import com.example.storage.CredentialStore;
+import com.example.utils.EncodingUtils;
 import com.example.utils.HashUtils;
 import com.example.utils.SignatureUtils;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -66,7 +67,7 @@ public class GetHandler extends BaseHandler implements CommandHandler {
             log.debug("Handling get request with format: {}", formatter.getFormatName());
             
             // Decode and ensure extensions are present
-            optionsJson = tryDecodeBase64Json(optionsJson);
+            optionsJson = EncodingUtils.tryDecodeBase64Json(optionsJson);
             optionsJson = ensureExtensionsInJson(optionsJson);
             
             // Parse options
@@ -96,8 +97,8 @@ public class GetHandler extends BaseHandler implements CommandHandler {
             ObjectNode credentialNode = jsonMapper.createObjectNode();
             
             // Format credential ID according to the configuration
-            formatter.formatBinary(credentialNode, "id", credentialId);
-            formatter.formatBinary(credentialNode, "rawId", credentialId);
+            formatter.formatBytes(credentialNode, "id", credentialId);
+            formatter.formatBytes(credentialNode, "rawId", credentialId);
             
             // Set the credential type
             credentialNode.put("type", "public-key");
@@ -110,18 +111,18 @@ public class GetHandler extends BaseHandler implements CommandHandler {
             ObjectNode responseNode = jsonMapper.createObjectNode();
             
             // Format clientDataJSON according to the configuration
-            formatter.formatBinary(responseNode, "clientDataJSON", new ByteArray(clientDataJson.getBytes(java.nio.charset.StandardCharsets.UTF_8)));
+            formatter.formatBytes(responseNode, "clientDataJSON", new ByteArray(clientDataJson.getBytes(java.nio.charset.StandardCharsets.UTF_8)));
             
             // Format authenticatorData according to the configuration
-            formatter.formatBinary(responseNode, "authenticatorData", new ByteArray(authenticatorData));
+            formatter.formatBytes(responseNode, "authenticatorData", new ByteArray(authenticatorData));
             
             // Format signature according to the configuration
-            formatter.formatBinary(responseNode, "signature", new ByteArray(signature));
+            formatter.formatBytes(responseNode, "signature", new ByteArray(signature));
             
             // Add userHandle if available
             Optional<ByteArray> userHandle = credentialStore.getUserHandleForCredential(credentialId);
             if (userHandle.isPresent() && !userHandle.get().isEmpty()) {
-                formatter.formatBinary(responseNode, "userHandle", userHandle.get());
+                formatter.formatBytes(responseNode, "userHandle", userHandle.get());
             }
             
             // Set the response node in the credential node
@@ -267,16 +268,23 @@ public class GetHandler extends BaseHandler implements CommandHandler {
         // Compose the authenticator data
         return composeAuthenticatorData(rpIdHash, flags, signCount);
     }
-
-    private String createClientDataJson(PublicKeyCredentialRequestOptions requestOptions) throws JsonProcessingException {
-        ObjectNode clientData = jsonMapper.createObjectNode();
-        clientData.put("type", "webauthn.get");
-        clientData.put("challenge", requestOptions.getChallenge().getBase64Url());
-        clientData.put("origin", "https://" + requestOptions.getRpId());
-        return clientData.toString();
+    
+    private String createClientDataJson(PublicKeyCredentialRequestOptions requestOptions) {
+        // Get the challenge in base64url format and ensure it's not escaped in JSON
+        String challenge = requestOptions.getChallenge().getBase64Url();
+        
+        // Create a raw JSON string to prevent escaping of the challenge
+        String clientDataJson = String.format(
+            "{\"type\":\"webauthn.get\",\"challenge\":\"%s\",\"origin\":\"https://%s\"}",
+            challenge,
+            requestOptions.getRpId()
+        );
+        
+        log.debug("Created client data JSON with origin: https://{} and challenge: {}", requestOptions.getRpId(), challenge);
+        return clientDataJson;
     }
-
-    private byte[] generateSignature(byte[] authenticatorData, String clientDataJson, PrivateKey privateKey) throws SignatureException {
+    
+    private byte[] generateSignature(byte[] authenticatorData, String clientDataJson, PrivateKey privateKey) throws Exception {
         byte[] clientDataHash = HashUtils.sha256(clientDataJson.getBytes(java.nio.charset.StandardCharsets.UTF_8));
         byte[] dataToSign = ByteBuffer.allocate(authenticatorData.length + clientDataHash.length)
             .put(authenticatorData)
