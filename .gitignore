@@ -44,10 +44,6 @@ bin/
 !gradle-wrapper.jar
 !gradle-wrapper.properties
 
-# Local configuration files
-*.properties
-*.prefs
-
 # System files
 .DS_Store
 Thumbs.db
