@@ -70,14 +70,14 @@ formats:
     publicKey: intArray
 
   ping:
-    id: 'null' 
-    rawId: 'base64url'
-    clientDataJSON: 'string'
-    attestationObject: 'byteArray'
-    authenticatorData: 'byteArray'
-    publicKey: 'null'
-    publicKeyAlgorithm: 'null'
-    signature: 'byteArray'
-    userHandle: 'null'
+    id: remove 
+    rawId: base64url
+    clientDataJSON: string
+    attestationObject: byteArray
+    authenticatorData: byteArray
+    publicKey: remove
+    publicKeyAlgorithm: remove
+    signature: byteArray
+    userHandle: remove
 
 

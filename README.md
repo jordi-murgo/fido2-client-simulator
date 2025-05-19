@@ -60,9 +60,11 @@ java -jar target/fido2-client-simulator-1.1-SNAPSHOT.jar create --input create_o
 
 ### Technologies
 - **Key storage**: Java KeyStore (PKCS12) for secure credential operations
-- **Cryptography**: Uses BouncyCastle and Yubico's WebAuthn libraries
-- **JSON**: Uses Jackson with CBOR support
-- **CLI**: Uses Picocli for command-line processing
+- **Cryptography**: BouncyCastle and Yubico's WebAuthn libraries
+- **JSON Processing**: Jackson with CBOR support and custom deserializers
+- **Codificación**: Soporte para Base64, Base64URL y formatos binarios
+- **CLI**: Picocli for command-line processing
+- **Logging**: SLF4J con implementación Logback
 
 ## CLI Reference
 
@@ -76,7 +78,9 @@ java -jar target/fido2-client-simulator-1.1-SNAPSHOT.jar create --input create_o
 | `--verbose` | | Enable detailed logging and show extended information |
 | `--json-only` | | Output only the JSON response (useful for scripting) |
 | `--interactive` | | Enable interactive credential selection (for `get` operation) |
-| `--help` | | Show help message |
+| `--format <FORMAT>` | `-f` | Output format (default, bytes, ints, ping) |
+| `--help` | `-h` | Show help message |
+| `--version` | `-V` | Print version information and exit |
 
 ### Operations
 
@@ -109,8 +113,42 @@ You can provide input to the CLI in three ways:
 
 ### Registration (`create`)
 
+#### Basic Example
 ```bash
-java -jar target/fido2-client-simulator-1.1-SNAPSHOT.jar create --input create_options.json
+java -jar target/fido2-client-simulator-1.1-SNAPSHOT.jar create -i create_options.json -o response.json
+```
+
+#### Example with Custom Challenge and Format
+```bash
+java -jar target/fido2-client-simulator-1.1-SNAPSHOT.jar create -i create_options.json -f bytes --pretty
+```
+
+#### Example Input JSON
+```json
+{
+  "challenge": "TEmqTQU6DhV2SaO0YFTM15KsqWyiFqpjHWa43HT7wBkKLNVQQttG5ADyRXjR8GZNFl8kexjNUKYwl6JF2MxHDA",
+  "rp": {
+    "name": "Example RP",
+    "id": "example.com"
+  },
+  "user": {
+    "id": "user123",
+    "name": "user@example.com",
+    "displayName": "Example User"
+  },
+  "pubKeyCredParams": [
+    {"type": "public-key", "alg": -7},
+    {"type": "public-key", "alg": -257}
+  ],
+  "timeout": 60000,
+  "attestation": "direct",
+  "authenticatorSelection": {
+    "authenticatorAttachment": "platform",
+    "requireResidentKey": false,
+    "residentKey": "preferred",
+    "userVerification": "preferred"
+  }
+}
 ```
 
 ### Authentication (`get`)
@@ -123,6 +161,25 @@ java -jar target/fido2-client-simulator-1.1-SNAPSHOT.jar get --input get_options
 
 ```bash
 java -jar target/fido2-client-simulator-1.1-SNAPSHOT.jar info --pretty
+```
+
+## Debugging y Depuración
+
+### Niveles de Log
+
+Los niveles de log se pueden configurar en `logback.xml`. Los niveles disponibles son:
+- `TRACE`: Muestra toda la información, incluyendo el procesamiento detallado de desafíos
+- `DEBUG`: Información detallada de depuración
+- `INFO`: Información general del flujo de la aplicación
+- `WARN`: Advertencias de posibles problemas
+- `ERROR`: Errores que requieren atención
+
+### Ejemplo de Salida de Depuración
+
+```
+TRACE - Deserializando campo 'challenge' desde string base64url (88 caracteres)
+DEBUG - Challenge bytes (hex): 4c49efbfbd4d053a0e157649...
+DEBUG - Challenge base64url: TEnvv71NBToOFXZJ77-977-9YFTvv73Xku...
 ```
 
 ## Advanced Usage
@@ -166,80 +223,117 @@ During credential creation, the attestation object is automatically decoded and 
 
 ### Output Formats
 
-The simulator supports different output formats for binary data in the response. You can specify the format using the `--format` option:
+The simulator supports different output formats for binary data in the response. You can specify the format using the `--format` or `-f` option:
 
 ```bash
-java -jar target/fido2-client-simulator-1.1-SNAPSHOT.jar create --input create_options.json --format=chrome
+java -jar target/fido2-client-simulator-1.1-SNAPSHOT.jar create -i create_options.json -f bytes
 ```
 
 #### Available Formats
 
 | Format | Description |
 |--------|-------------|
-| `default` | Uses base64url for all binary fields (WebAuthn standard) |
+| `default` | Uses base64url for all binary fields |
 | `bytes` | Outputs binary data as arrays of signed bytes (-128 to 127) |
-| `json` | Uses standard base64 for binary fields (better for some JSON tools) |
-| `chrome` | Similar to Chrome's WebAuthn debug output |
-| `debug` | All fields as arrays of integers (0-255) for easy inspection |
-| `minimal` | Only includes essential fields with compact encoding |
+| `ints` | Outputs binary data as arrays of unsigned integers (0-255) |
+| `ping` | Optimized format for Ping Identity compatibility |
 
 #### Format Configuration
 
-You can customize the output formats by editing the `fido2_formats.yaml` file in the resources directory. Each format can specify how different fields should be encoded.
+Formats are defined in `src/main/resources/configuration.yaml`. Each format specifies how different fields should be encoded:
 
-Available encoding options for each field:
-- `base64`: Standard Base64 encoding (with +/)
+- `base64`: Standard Base64 encoding (with +/=)
 - `base64url`: URL-safe Base64 encoding (with -_)
-- `bytearray` or `bytes`: Array of signed bytes (-128 to 127)
-- `intarray` or `ints`: Array of unsigned integers (0-255)
-- `string`: Try to decode as UTF-8 text (falls back to base64url if not valid text)
+- `byteArray`: Array of signed bytes (-128 to 127)
+- `intArray`: Array of unsigned integers (0-255)
+- `string`: Try to decode as UTF-8 text (falls back to base64url if not valid)
+- `number`: mantains the number as it is
+- `object`: mantains the object as it is
+- `null`: Sets the field to null (type `'null'` in the configuration)
+- `remove`: Exclude the field from output
 
 ### Configuration
+
+The simulator uses a YAML configuration file for format definitions and other settings. The default configuration is loaded from the classpath at `configuration.yaml`.
 
 #### Configuration File Locations
 The configuration is loaded from the following locations in order of precedence:
 
-1. Current directory: `fido2_config.properties`
-2. User home directory: `~/.fido2/config.properties`
-3. System-wide: `/etc/fido2/config.properties`
-4. Application classpath (default embedded configuration)
+1. File specified by `FIDO2_CONFIG` environment variable
+2. `config/configuration.yaml` in the current directory
+3. `configuration.yaml` in the current directory
+4. Default configuration from classpath
 
-#### Available Configuration Properties
+#### Example Configuration
 
-| Property | Description | Default Value |
-|----------|-------------|---------------|
-| `keystore.path` | Path to the PKCS12 keystore file | `fido2_keystore.p12` |
-| `metadata.path` | Path to the JSON metadata file | `fido2_metadata.json` |
-| `keystore.password` | Password for the keystore | `changeit` |
-| `log.level` | Logging level | `INFO` |
-| `default.format` | Default output format to use | `default` |
+```yaml
+# Keystore settings
+keystore:
+  path: fido2_keystore.p12
+  password: changeme
+  metadataPath: fido2_keystore_metadata.json
 
-#### Sample Configuration
+# Logging level (DEBUG, INFO, WARN, ERROR)
+logLevel: INFO
 
-```properties
-# Storage settings
-keystore.path=/secure/path/fido2_keystore.p12
-metadata.path=/secure/path/fido2_metadata.json
-
-# Security settings
-keystore.password=your_secure_password
-
-# Logging configuration
-log.level=INFO
-
-# Default output format
-default.format=chrome
+# Output formats configuration
+formats:
+  # Default format - uses base64url for binary fields (WebAuthn standard)
+  default:
+    id: base64url
+    rawId: base64url
+    authenticatorData: base64url
+    clientDataJSON: base64url
+    signature: base64url
+    userHandle: base64url
+    attestationObject: base64url
+    publicKey: base64url
+    
+  # Bytes format - outputs binary data as signed byte arrays
+  bytes:
+    id: base64url
+    rawId: byteArray
+    authenticatorData: byteArray
+    clientDataJSON: string
+    signature: byteArray
+    userHandle: base64url
+    attestationObject: byteArray
+    publicKey: byteArray
+    
+  # Ints format - outputs binary data as unsigned integers
+  ints:
+    id: base64url
+    rawId: intArray
+    authenticatorData: intArray
+    clientDataJSON: string
+    signature: intArray
+    userHandle: base64url
+    attestationObject: intArray
+    publicKey: intArray
+    
+  # Ping format - optimized for Ping Identity compatibility
+  ping:
+    id: 'null'
+    rawId: 'base64url'
+    clientDataJSON: 'string'
+    attestationObject: 'byteArray'
+    authenticatorData: 'byteArray'
+    publicKey: 'null'
+    publicKeyAlgorithm: 'null'
+    signature: 'byteArray'
+    userHandle: 'null'
 ```
 
 ### Files Created
 
 - `fido2_keystore.p12`: Stores credential private keys in PKCS12 format
-- `fido2_metadata.json`: Stores rich credential metadata including:
+- `fido2_keystore_metadata.json`: Stores credential metadata including:
   - Registration response JSON
-  - RP information
+  - RP (Relying Party) information
   - User information
-  - PEM-encoded public key
+  - Public key details
   - Creation timestamp
+  - Credential ID and other metadata
 
 ## Architecture
 
@@ -360,6 +454,22 @@ sequenceDiagram
 
 ## Troubleshooting
 
+### Manejo de Desafíos (Challenges)
+
+El simulador maneja automáticamente los desafíos durante el registro y autenticación. Si encuentras problemas:
+
+1. **Formato del Challenge**:
+   - Asegúrate de que el challenge esté en formato Base64URL
+   - El simulador intentará decodificar automáticamente si está en otro formato
+
+2. **Verificación del Challenge**:
+   - Durante el registro, se valida que el challenge no se modifique
+   - Se incluyen logs detallados con el prefijo `ByteArrayDeserializer` para depuración
+
+3. **Logs de Depuración**:
+   - Usa `--verbose` para ver información detallada del procesamiento
+   - Los desafíos se registran en formato hexadecimal para facilitar la comparación
+
 ### Common Issues
 
 - **KeyStore errors**: Ensure you have proper write permissions to the keystore directory.
@@ -385,7 +495,13 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 
 ## Changelog
 
-### v1.1 (Current)
+### [1.2.0] - 2025-05-19
+- **Mejora**: Mejor manejo de desafíos (challenges) durante el registro
+- **Nuevo**: Utilidades mejoradas de codificación/decodificación Base64
+- **Depuración**: Logs más detallados para el seguimiento de desafíos
+- **Rendimiento**: Optimización del procesamiento de JSON
+
+### [1.1.0] - 2025-05-15(Current)
 - Added support for `CommandHandler` interface replacing `CredentialHandler`
 - Enhanced `info` command with detailed system configuration output
 - Changed --file option to --input for consistency

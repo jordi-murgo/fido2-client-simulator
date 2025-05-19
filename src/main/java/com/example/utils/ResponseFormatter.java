@@ -73,8 +73,6 @@ public class ResponseFormatter {
         return options.getFormat();
     }
 
-
-    
     /**
      * Formats binary data according to the configured format for the specified field.
      * This method accepts a String as input.
@@ -108,6 +106,9 @@ public class ResponseFormatter {
         log.debug("Formatting number field '{}' as '{}'", fieldName, format);
         
         switch (format) {
+            case "remove":
+                parent.remove(fieldName);
+                break;
             case "number":
                 parent.set(fieldName, JsonNodeFactory.instance.numberNode(data));
                 break;
@@ -151,6 +152,9 @@ public class ResponseFormatter {
         log.debug("Formatting object field '{}' as '{}'", fieldName, format);
 
         switch (format) {
+            case "remove":
+                parent.remove(fieldName);
+                break;
             case "object":
                 parent.set(fieldName, data);
                 break;
@@ -200,6 +204,10 @@ public class ResponseFormatter {
      */
     public ResponseFormatter formatBytes(ObjectNode parent, String fieldName, ByteArray data) {
         JsonNode objectNode = data != null ? formatBytes(data, fieldName) : JsonNodeFactory.instance.nullNode();
+        if (objectNode == null) {
+            parent.remove(fieldName);
+            return this;
+        }
         if (objectNode.isTextual()) {
             parent.put(fieldName, objectNode.asText());
         } else {
@@ -238,6 +246,9 @@ public class ResponseFormatter {
         
         try {
             switch (format) {
+                case "remove":
+                    return null;
+                
                 case "base64":
                     return JsonNodeFactory.instance.textNode(data.getBase64());
                     

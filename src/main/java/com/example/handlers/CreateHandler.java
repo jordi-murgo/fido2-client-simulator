@@ -77,7 +77,39 @@ public class CreateHandler extends BaseHandler implements CommandHandler {
         }
     }
 
+    /**
+     * Cleans the JSON from unsupported algorithms (other than -7 and -257)
+     * @param json The JSON string to clean "pubKeyCredParams"
+     * @return The cleaned JSON string
+     */
+    private ObjectNode cleanUnsupportedAlgorithms(ObjectNode rootNode) {
+        try {
+            ArrayNode pubKeyCredParams = (ArrayNode) rootNode.path("pubKeyCredParams");
+            
+            ArrayNode cleanedPubKeyCredParams = jsonMapper.createArrayNode();
 
+            for (JsonNode param : pubKeyCredParams) {
+                int alg = param.path("alg").asInt();
+                if (alg == -7 || alg == -257) {
+                    cleanedPubKeyCredParams.add(param);
+                } else {
+                    log.debug("Unsupported algorithm: {}", alg);
+                }
+            }
+            
+            if(cleanedPubKeyCredParams.size() == 0) {
+                throw new IllegalArgumentException("No supported algorithms found in pubKeyCredParams");
+            }
+
+            rootNode.set("pubKeyCredParams", cleanedPubKeyCredParams);
+
+            return rootNode;
+            
+        } catch (Exception e) {
+            log.error("Error cleaning JSON from unsupported algorithms: {}", e.getMessage(), e);
+            return rootNode;
+        }
+    }
 
     /**
      * Handles the creation of a new FIDO2 credential, returning the PublicKeyCredential as JSON.
@@ -87,20 +119,21 @@ public class CreateHandler extends BaseHandler implements CommandHandler {
      */
     public String handleCreate(String optionsJson) throws Exception {
         try {
-            // Log the raw input first
-            log.debug("Raw input optionsJson: {}", optionsJson);
-            
             // Try to decode base64 if needed
             String decodedOptions = EncodingUtils.tryDecodeBase64Json(optionsJson);
-            log.debug("After base64 decode: {}", decodedOptions);
+            ObjectNode rootNode = (ObjectNode) jsonMapper.readTree(decodedOptions);
             
+            // Clean the JSON from unsupported algorithms
+            rootNode = cleanUnsupportedAlgorithms(rootNode);
+            
+            log.debug("Cleaned JSON: {}", rootNode.toString());
+
             // Parse the JSON into a tree first to inspect the challenge
-            JsonNode rootNode = jsonMapper.readTree(decodedOptions);
-            String originalChallenge = rootNode.path("challenge").asText();
+            String originalChallenge = rootNode.get("challenge").asText();
             log.debug("Original challenge from JSON: {}", originalChallenge);
             
             // Now parse the full options object
-            PublicKeyCredentialCreationOptions options = jsonMapper.readValue(decodedOptions, PublicKeyCredentialCreationOptions.class);
+            PublicKeyCredentialCreationOptions options = jsonMapper.treeToValue(rootNode, PublicKeyCredentialCreationOptions.class);
             
             // We'll use the original challenge as-is
             
