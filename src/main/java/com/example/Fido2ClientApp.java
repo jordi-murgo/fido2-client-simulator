@@ -56,7 +56,7 @@ import picocli.CommandLine.Parameters;
  * @author jpmo
  * @since 2025-05-09
  */
-@Command(name = "fido2-client", mixinStandardHelpOptions = true, version = "FIDO2 Client Simulator 1.1",
+@Command(name = "fido2-client", mixinStandardHelpOptions = true, version = "FIDO2 Client Simulator 1.2.0",
         description = "Simulates FIDO2 client operations (create/get/info).")
 @Slf4j
 public class Fido2ClientApp implements Callable<Integer> {
