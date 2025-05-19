@@ -27,7 +27,53 @@ replay_pid*
 fido2_keystore.p12
 fido2_keystore_metadata.json
 
+# Build directories
 target/
+build/
+bin/
+
+# IDE specific files
 .idea/
 .vscode/
+*.iml
+*.iws
+*.ipr
 
+# Gradle files
+.gradle/
+!gradle-wrapper.jar
+!gradle-wrapper.properties
+
+# Local configuration files
+*.properties
+*.prefs
+
+# System files
+.DS_Store
+Thumbs.db
+
+# Logs
+logs/
+*.log
+
+# Local configuration
+local.properties
+
+# Gradle cache
+gradle-app.setting
+
+# Avoid ignoring Gradle wrapper jar file (.jar files are usually ignored)
+!gradle-wrapper.jar
+
+# Avoid ignore Gradle wrappper properties
+!gradlew
+!gradlew.bat
+
+# Avoid ignore gradle-wrapper.jar
+!gradle-wrapper.jar
+
+# Cache of project
+.gradletasknamecache
+
+# # Work around https://youtrack.jetbrains.com/issue/IDEA-116898
+# gradle/wrapper/gradle-wrapper.properties

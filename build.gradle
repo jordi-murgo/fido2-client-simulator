@@ -1,0 +1,130 @@
+plugins {
+    id 'java'
+    id 'application'
+    id 'com.github.johnrengelman.shadow' version '8.1.1'
+    id 'org.openjfx.javafxplugin' version '0.1.0'
+}
+
+group 'com.example'
+version '1.2.0-SNAPSHOT'
+
+repositories {
+    mavenCentral()
+}
+
+java {
+    sourceCompatibility = JavaVersion.VERSION_11
+    targetCompatibility = JavaVersion.VERSION_11
+}
+
+ext {
+    // Version management
+    yubicoWebauthnVersion = '2.6.0'
+    jacksonVersion = '2.19.0'
+    bouncycastleVersion = '1.70'
+    picocliVersion = '4.7.5'
+    lombokVersion = '1.18.38'
+    snakeyamlVersion = '2.2'
+    slf4jVersion = '2.0.7'
+    logbackVersion = '1.5.18'
+    junitVersion = '5.10.0'
+    mockitoVersion = '5.4.0'
+    guavaVersion = '33.4.8-jre'
+    cborVersion = '4.5.6'
+}
+
+dependencies {
+    // Yubico WebAuthn (core data structures, COSE)
+    implementation ("com.yubico:webauthn-server-core:${yubicoWebauthnVersion}") {
+        exclude group: 'com.google.guava', module: 'guava'
+    }
+    
+    // Google Guava (explicit version to avoid conflicts)
+    implementation "com.google.guava:guava:${guavaVersion}"
+    
+    // Jackson for JSON
+    implementation "com.fasterxml.jackson.core:jackson-databind:${jacksonVersion}"
+    implementation "com.fasterxml.jackson.dataformat:jackson-dataformat-cbor:${jacksonVersion}"
+    implementation "com.fasterxml.jackson.datatype:jackson-datatype-jdk8:${jacksonVersion}"
+    
+    // Jackson YAML
+    implementation "com.fasterxml.jackson.dataformat:jackson-dataformat-yaml:${jacksonVersion}"
+    
+    // BouncyCastle for crypto operations
+    implementation "org.bouncycastle:bcprov-jdk15on:${bouncycastleVersion}"
+    implementation "org.bouncycastle:bcpkix-jdk15on:${bouncycastleVersion}"
+    
+    // Command line interface
+    implementation "info.picocli:picocli:${picocliVersion}"
+    annotationProcessor "info.picocli:picocli-codegen:${picocliVersion}"
+    
+    // YAML processing
+    implementation "org.yaml:snakeyaml:${snakeyamlVersion}"
+    
+    // CBOR processing
+    implementation "com.upokecenter:cbor:${cborVersion}"
+    
+    // Logging
+    implementation "org.slf4j:slf4j-api:${slf4jVersion}"
+    implementation "ch.qos.logback:logback-classic:${logbackVersion}"
+    
+    // Lombok
+    compileOnly "org.projectlombok:lombok:${lombokVersion}"
+    annotationProcessor "org.projectlombok:lombok:${lombokVersion}"
+    
+    // Testing
+    testImplementation "org.junit.jupiter:junit-jupiter-api:${junitVersion}"
+    testRuntimeOnly "org.junit.jupiter:junit-jupiter-engine:${junitVersion}"
+    testImplementation "org.mockito:mockito-core:${mockitoVersion}"
+    testImplementation "org.mockito:mockito-junit-jupiter:${mockitoVersion}"
+}
+
+application {
+    mainClass = 'com.example.Fido2ClientApp'
+}
+
+jar {
+    manifest {
+        attributes 'Main-Class': 'com.example.Fido2ClientApp'
+    }
+    
+    from {
+        configurations.runtimeClasspath.collect { it.isDirectory() ? it : zipTree(it) }
+    }
+    
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+    
+    // Exclude signature files that cause security exceptions
+    exclude 'META-INF/*.RSA', 'META-INF/*.SF', 'META-INF/*.DSA'
+}
+
+test {
+    useJUnitPlatform()
+    testLogging {
+        events "passed", "skipped", "failed"
+    }
+}
+
+// Configuración para generar un JAR ejecutable con todas las dependencias
+shadowJar {
+    archiveBaseName = 'fido2-client-simulator'
+    archiveClassifier = 'all'
+    archiveVersion = project.version
+    mergeServiceFiles()
+    manifest {
+        attributes 'Main-Class': 'com.example.Fido2ClientApp'
+    }
+    // Excluir archivos de firma que pueden causar problemas
+    exclude 'META-INF/*.RSA', 'META-INF/*.SF', 'META-INF/*.DSA'
+}
+
+// Tareas personalizadas
+// Tarea para crear un directorio de distribución
+task createDist(type: Copy) {
+    from shadowJar
+    from 'README.md', 'LICENSE', 'configuration.yaml'
+    into "${buildDir}/dist"
+}
+
+// Configurar la tarea build para que dependa de createDist
+build.dependsOn createDist
