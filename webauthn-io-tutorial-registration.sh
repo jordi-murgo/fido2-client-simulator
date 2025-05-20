@@ -7,7 +7,7 @@ RED='\033[0;31m'
 NC='\033[0m' # No Color
 
 # Set the path to the JAR file
-JAR_PATH="target/fido2-client-simulator-1.1-SNAPSHOT.jar"
+JAR_PATH="target/fido2-client-simulator-1.3.0-SNAPSHOT.jar"
 
 # Check if JAR exists
 if [ ! -f "$JAR_PATH" ]; then
