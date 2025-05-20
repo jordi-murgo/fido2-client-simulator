@@ -495,13 +495,17 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 
 ## Changelog
 
-### [1.2.0] - 2025-05-19
-- **Mejora**: Mejor manejo de desafíos (challenges) durante el registro
-- **Nuevo**: Utilidades mejoradas de codificación/decodificación Base64
-- **Depuración**: Logs más detallados para el seguimiento de desafíos
-- **Rendimiento**: Optimización del procesamiento de JSON
+### [1.3.0] - 2025-05-20
+- **Improved**: Dependency management to avoid downloading SNAPSHOTs from nexus mirror
+- **Enhanced**: Simplified challenge handling during registration process
 
-### [1.1.0] - 2025-05-15(Current)
+### [1.2.0] - 2025-05-19
+- **Improved**: Better handling of challenges during registration
+- **New**: Enhanced Base64 encoding/decoding utilities
+- **Debug**: More detailed logging for challenge tracking
+- **Performance**: JSON processing optimization
+
+### [1.1.0] - 2025-05-15
 - Added support for `CommandHandler` interface replacing `CredentialHandler`
 - Enhanced `info` command with detailed system configuration output
 - Changed --file option to --input for consistency

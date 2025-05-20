@@ -137,19 +137,6 @@ public class CreateHandler extends BaseHandler implements CommandHandler {
             log.debug("Parsed options class: {}", options.getClass().getName());
             log.debug("Challenge base64url: {}", options.getChallenge().getBase64Url());
             
-            options = PublicKeyCredentialCreationOptions.builder()
-                .rp(options.getRp())
-                .user(options.getUser())
-                .challenge(options.getChallenge())
-                .pubKeyCredParams(options.getPubKeyCredParams())
-                .timeout(options.getTimeout())
-                .excludeCredentials(options.getExcludeCredentials())
-                .authenticatorSelection(options.getAuthenticatorSelection())
-                .attestation(options.getAttestation())
-                .extensions(options.getExtensions())
-                .build();
-        
-
             validateOptions(options);
     
             // 1. Select an algorithm (first supported)
