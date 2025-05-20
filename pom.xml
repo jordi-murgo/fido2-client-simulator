@@ -10,14 +10,14 @@
         <maven.compiler.source>11</maven.compiler.source>
         <maven.compiler.target>11</maven.compiler.target>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <jackson.version>2.15.4</jackson.version>
-        <yubico.webauthn.version>2.6.0</yubico.webauthn.version>
-        <bouncycastle.version>1.70</bouncycastle.version>
-        <picocli.version>4.7.5</picocli.version>
+        <jackson.version>2.19.0</jackson.version>
+        <yubico.webauthn.version>2.7.0</yubico.webauthn.version>
+        <bouncycastle.version>1.80</bouncycastle.version>
+        <picocli.version>4.7.7</picocli.version>
         <cbor.version>4.5.6</cbor.version>
         <lombok.version>1.18.38</lombok.version>
-        <snakeyaml.version>2.2</snakeyaml.version>
-        <slf4j.version>2.0.7</slf4j.version>
+        <snakeyaml.version>2.4</snakeyaml.version>
+        <slf4j.version>2.0.17</slf4j.version>
         <logback.version>1.5.18</logback.version>
     </properties>
 
@@ -89,12 +89,12 @@
         <!-- BouncyCastle for Crypto -->
         <dependency>
             <groupId>org.bouncycastle</groupId>
-            <artifactId>bcprov-jdk15on</artifactId>
+            <artifactId>bcprov-jdk18on</artifactId>
             <version>${bouncycastle.version}</version>
         </dependency>
         <dependency>
             <groupId>org.bouncycastle</groupId>
-            <artifactId>bcpkix-jdk15on</artifactId>
+            <artifactId>bcpkix-jdk18on</artifactId>
             <version>${bouncycastle.version}</version>
         </dependency>
 
@@ -176,47 +176,47 @@
             <dependency>
                 <groupId>com.fasterxml.jackson</groupId>
                 <artifactId>jackson-bom</artifactId>
-                <version>[2.13.2.1,2.99)</version>
+                <version>${jackson.version}</version>
             </dependency>
             <dependency>
                 <groupId>com.fasterxml.jackson.core</groupId>
                 <artifactId>jackson-databind</artifactId>
-                <version>[2.13.2.1,2.99)</version>
+                <version>${jackson.version}</version>
             </dependency>
             <dependency>
                 <groupId>com.fasterxml.jackson.dataformat</groupId>
                 <artifactId>jackson-dataformat-cbor</artifactId>
-                <version>[2.13.2.1,2.99)</version>
+                <version>${jackson.version}</version>
             </dependency>
             <dependency>
                 <groupId>com.fasterxml.jackson.datatype</groupId>
                 <artifactId>jackson-datatype-jdk8</artifactId>
-                <version>[2.13.2.1,2.99)</version>
+                <version>${jackson.version}</version>
             </dependency>
             <dependency>
                 <groupId>com.fasterxml.jackson.datatype</groupId>
                 <artifactId>jackson-datatype-jsr310</artifactId>
-                <version>[2.13.2.1,2.99)</version>
+                <version>${jackson.version}</version>
             </dependency>
             <dependency>
                 <groupId>com.upokecenter</groupId>
                 <artifactId>cbor</artifactId>
-                <version>[4.5.1,4.99)</version>
+                <version>${cbor.version}</version>
             </dependency>
             <dependency>
                 <groupId>com.google.guava</groupId>
                 <artifactId>guava</artifactId>
-                <version>[24.1.1,33.99)</version>
+                <version>${guava.version}</version>
             </dependency>
             <dependency>
                 <groupId>org.apache.httpcomponents.client5</groupId>
                 <artifactId>httpclient5</artifactId>
-                <version>[5.0.0,5.99)</version>
+                <version>${httpclient5.version}</version>
             </dependency>
             <dependency>
                 <groupId>org.slf4j</groupId>
                 <artifactId>slf4j-api</artifactId>
-                <version>[1.7.25,2.99)</version>
+                <version>${slf4j.version}</version>
             </dependency>
         </dependencies>
     </dependencyManagement>
