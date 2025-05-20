@@ -128,37 +128,27 @@ public class CreateHandler extends BaseHandler implements CommandHandler {
             
             log.debug("Cleaned JSON: {}", rootNode.toString());
 
-            // Parse the JSON into a tree first to inspect the challenge
-            String originalChallenge = rootNode.get("challenge").asText();
-            log.debug("Original challenge from JSON: {}", originalChallenge);
-            
             // Now parse the full options object
             PublicKeyCredentialCreationOptions options = jsonMapper.treeToValue(rootNode, PublicKeyCredentialCreationOptions.class);
             
             // We'll use the original challenge as-is
             
             // Log the parsed options and the challenge
-            log.debug("Parsed options: {}", options.toJson());
-            log.debug("Challenge bytes (hex): {}", bytesToHex(options.getChallenge().getBytes()));
+            log.debug("Parsed options class: {}", options.getClass().getName());
             log.debug("Challenge base64url: {}", options.getChallenge().getBase64Url());
             
-            // Replace the challenge in the options with the original one
-            if (!originalChallenge.equals(options.getChallenge().getBase64Url())) {
-                log.warn("Challenge mismatch! Original: {}, Parsed: {}", 
-                       originalChallenge, options.getChallenge().getBase64Url());
-                // Create a new challenge object with the original value
-                options = PublicKeyCredentialCreationOptions.builder()
-                    .rp(options.getRp())
-                    .user(options.getUser())
-                    .challenge(new ByteArray(Base64.getUrlDecoder().decode(originalChallenge)))
-                    .pubKeyCredParams(options.getPubKeyCredParams())
-                    .timeout(options.getTimeout())
-                    .excludeCredentials(options.getExcludeCredentials())
-                    .authenticatorSelection(options.getAuthenticatorSelection())
-                    .attestation(options.getAttestation())
-                    .extensions(options.getExtensions())
-                    .build();
-            }
+            options = PublicKeyCredentialCreationOptions.builder()
+                .rp(options.getRp())
+                .user(options.getUser())
+                .challenge(options.getChallenge())
+                .pubKeyCredParams(options.getPubKeyCredParams())
+                .timeout(options.getTimeout())
+                .excludeCredentials(options.getExcludeCredentials())
+                .authenticatorSelection(options.getAuthenticatorSelection())
+                .attestation(options.getAttestation())
+                .extensions(options.getExtensions())
+                .build();
+        
 
             validateOptions(options);
     
