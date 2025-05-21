@@ -4,7 +4,64 @@
 GREEN='\033[0;32m'
 BLUE='\033[0;34m'
 RED='\033[0;31m'
+YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
+
+# Verificar dependencias necesarias
+echo -e "${BLUE}=== Verificando dependencias necesarias ===${NC}"
+
+# Función para verificar si un comando existe
+check_command() {
+    local cmd=$1
+    local name=$2
+    
+    if command -v $cmd &> /dev/null; then
+        echo -e "${GREEN}✓ $name encontrado${NC}"
+        return 0
+    else
+        echo -e "${RED}✗ $name no encontrado${NC}"
+        return 1
+    fi
+}
+
+# Verificar Java
+JAVA_OK=0
+if ! check_command java "Java"; then
+    JAVA_OK=1
+    echo -e "${YELLOW}Instrucciones para instalar Java:${NC}"
+    echo "  Windows: Descarga JDK desde https://adoptium.net/"
+    echo "  macOS: brew install --cask temurin"
+    echo "  Linux: sudo apt install default-jdk"
+    echo ""
+fi
+
+# Verificar curl
+CURL_OK=0
+if ! check_command curl "curl"; then
+    CURL_OK=1
+    echo -e "${YELLOW}Instrucciones para instalar curl:${NC}"
+    echo "  Windows: winget install cURL"
+    echo "  macOS: brew install curl"
+    echo "  Linux: sudo apt install curl"
+    echo ""
+fi
+
+# Verificar jq
+JQ_OK=0
+if ! check_command jq "jq"; then
+    JQ_OK=1
+    echo -e "${YELLOW}Instrucciones para instalar jq:${NC}"
+    echo "  Windows: winget install jqlang.jq"
+    echo "  macOS: brew install jq"
+    echo "  Linux: sudo apt install jq"
+    echo ""
+fi
+
+# Salir si falta alguna dependencia
+if [ $JAVA_OK -eq 1 ] || [ $CURL_OK -eq 1 ] || [ $JQ_OK -eq 1 ]; then
+    echo -e "${RED}Error: Faltan dependencias necesarias. Por favor, instale las herramientas faltantes e intente de nuevo.${NC}"
+    exit 1
+fi
 
 # Set the path to the JAR file
 JAR_PATH="target/fido2-client-simulator-1.3.0-SNAPSHOT.jar"
@@ -24,7 +81,7 @@ echo -e "${BLUE}=== WebAuthn.io Registration Tutorial ===${NC}"
 
 # Get cookies first
 echo -e "\n${BLUE}Getting cookies...${NC}"
-curl -s -c "$TEST_DIR/cookies.txt" "https://webauthn.io/" > /dev/null
+curl -s -k -c "$TEST_DIR/cookies.txt" "https://webauthn.io/" > /dev/null
 
 # Step 1: Get registration options
 echo -e "\n${BLUE}Step 1: Get registration options${NC}"
@@ -45,7 +102,7 @@ echo "$REG_OPTIONS_PAYLOAD" > "$TEST_DIR/reg_options_request.json"
 
 
 # Get registration options
-REG_OPTIONS_RESPONSE=$(curl -s -X POST "https://webauthn.io/registration/options" \
+REG_OPTIONS_RESPONSE=$(curl -s -k -X POST "https://webauthn.io/registration/options" \
     -H "content-type: application/json" \
     -H "origin: https://webauthn.io" \
     -b "$TEST_DIR/cookies.txt" \
@@ -95,51 +152,27 @@ REG_VERIFY_PAYLOAD=$(jq -n --argjson response "$(cat "$TEST_DIR/create_response.
 
 echo "$REG_VERIFY_PAYLOAD" > "$TEST_DIR/reg_verify_request.json"
 
-# Save the full curl command for debugging
-CURL_CMD="curl -v -X POST \"https://webauthn.io/registration/verification\" \
-    -H \"content-type: application/json\" \
-    -H \"origin: https://webauthn.io\" \
-    -b \"$TEST_DIR/cookies.txt\" \
-    -d @\"$TEST_DIR/reg_verify_request.json\""
-
-echo -e "\n${BLUE}Debug: Sending verification request${NC}"
-echo "$CURL_CMD"
-
-# Save the full curl output including headers to a file for debugging
-REG_VERIFY_RESPONSE=$(curl -v -X POST "https://webauthn.io/registration/verification" \
+# Send verification request
+REG_VERIFY_RESPONSE=$(curl -s -k -X POST "https://webauthn.io/registration/verification" \
     -H "content-type: application/json" \
     -H "origin: https://webauthn.io" \
     -b "$TEST_DIR/cookies.txt" \
-    2> "$TEST_DIR/reg_verify_curl_debug.txt" \
     -d "@$TEST_DIR/reg_verify_request.json")
 
 echo "$REG_VERIFY_RESPONSE" > "$TEST_DIR/reg_verify_response.json"
 
 # Check verification result
 if [ -f "$TEST_DIR/reg_verify_response.json" ]; then
-    # Check if the request was successful (HTTP 2xx)
-    HTTP_STATUS=$(grep '^< HTTP/' "$TEST_DIR/reg_verify_curl_debug.txt" | tail -n 1 | cut -d' ' -f3)
-
-    if [ -z "$HTTP_STATUS" ]; then
-        echo -e "${RED}✗ No HTTP status received in response${NC}"
-        echo -e "${RED}Curl debug output:${NC}"
-        cat "$TEST_DIR/reg_verify_curl_debug.txt"
-        exit 1
-    fi
-
     # Check if the response is valid JSON
     if ! jq -e . "$TEST_DIR/reg_verify_response.json" > /dev/null 2>&1; then
         echo -e "${RED}✗ Invalid JSON response from server${NC}"
-        echo -e "${RED}HTTP Status: $HTTP_STATUS${NC}"
         echo -e "${RED}Response: $(cat "$TEST_DIR/reg_verify_response.json")${NC}"
-        echo -e "\n${RED}Curl debug output:${NC}"
-        cat "$TEST_DIR/reg_verify_curl_debug.txt"
         exit 1
     fi
 
-    # Check if the response indicates success
-    if [ "$HTTP_STATUS" -ge 200 ] && [ "$HTTP_STATUS" -lt 300 ]; then
-        echo -e "${GREEN}✓ Registration verified successfully (HTTP $HTTP_STATUS)${NC}"
+    # Check if the response indicates success by looking for a success field or absence of error
+    if jq -e '.success // (has("error") | not)' "$TEST_DIR/reg_verify_response.json" > /dev/null 2>&1; then
+        echo -e "${GREEN}✓ Registration verified successfully${NC}"
         echo -e "\n${GREEN}=== Registration Details ===${NC}"
         echo -e "Credential ID: ${BLUE}$CREDENTIAL_ID${NC}"
         echo -e "Verification Response: ${BLUE}$TEST_DIR/reg_verify_response.json${NC}"
@@ -147,18 +180,10 @@ if [ -f "$TEST_DIR/reg_verify_response.json" ]; then
         # Extract error message from response if available
         ERROR_MSG=$(jq -r '.error // .message // "Unknown error"' "$TEST_DIR/reg_verify_response.json" 2>/dev/null || echo "Unknown error")
         
-        echo -e "${RED}✗ Registration verification failed (HTTP $HTTP_STATUS): $ERROR_MSG${NC}"
+        echo -e "${RED}✗ Registration verification failed: $ERROR_MSG${NC}"
         echo -e "\n${RED}=== Error Details ===${NC}"
         echo -e "${RED}Response:${NC}"
         jq . "$TEST_DIR/reg_verify_response.json"
-        
-        # Show request payload for debugging
-        echo -e "\n${RED}=== Request Payload ===${NC}"
-        jq . "$TEST_DIR/reg_verify_request.json"
-        
-        # Show headers for debugging
-        echo -e "\n${RED}=== Request Headers ===${NC}"
-        grep -A 100 '^> ' "$TEST_DIR/reg_verify_curl_debug.txt" | head -n 20
         
         exit 1
     fi

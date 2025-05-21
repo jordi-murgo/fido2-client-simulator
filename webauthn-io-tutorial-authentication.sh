@@ -4,7 +4,64 @@
 GREEN='\033[0;32m'
 BLUE='\033[0;34m'
 RED='\033[0;31m'
+YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
+
+# Verificar dependencias necesarias
+echo -e "${BLUE}=== Verificando dependencias necesarias ===${NC}"
+
+# Función para verificar si un comando existe
+check_command() {
+    local cmd=$1
+    local name=$2
+    
+    if command -v $cmd &> /dev/null; then
+        echo -e "${GREEN}✓ $name encontrado${NC}"
+        return 0
+    else
+        echo -e "${RED}✗ $name no encontrado${NC}"
+        return 1
+    fi
+}
+
+# Verificar Java
+JAVA_OK=0
+if ! check_command java "Java"; then
+    JAVA_OK=1
+    echo -e "${YELLOW}Instrucciones para instalar Java:${NC}"
+    echo "  Windows: Descarga JDK desde https://adoptium.net/"
+    echo "  macOS: brew install --cask temurin"
+    echo "  Linux: sudo apt install default-jdk"
+    echo ""
+fi
+
+# Verificar curl
+CURL_OK=0
+if ! check_command curl "curl"; then
+    CURL_OK=1
+    echo -e "${YELLOW}Instrucciones para instalar curl:${NC}"
+    echo "  Windows: winget install cURL"
+    echo "  macOS: brew install curl"
+    echo "  Linux: sudo apt install curl"
+    echo ""
+fi
+
+# Verificar jq
+JQ_OK=0
+if ! check_command jq "jq"; then
+    JQ_OK=1
+    echo -e "${YELLOW}Instrucciones para instalar jq:${NC}"
+    echo "  Windows: winget install jqlang.jq"
+    echo "  macOS: brew install jq"
+    echo "  Linux: sudo apt install jq"
+    echo ""
+fi
+
+# Salir si falta alguna dependencia
+if [ $JAVA_OK -eq 1 ] || [ $CURL_OK -eq 1 ] || [ $JQ_OK -eq 1 ]; then
+    echo -e "${RED}Error: Faltan dependencias necesarias. Por favor, instale las herramientas faltantes e intente de nuevo.${NC}"
+    exit 1
+fi
 
 # Set the path to the JAR file
 JAR_PATH="target/fido2-client-simulator-1.3.0-SNAPSHOT.jar"
@@ -25,7 +82,7 @@ echo -e "${BLUE}=== WebAuthn.io Authentication Tutorial ===${NC}"
 
 # Get cookies first
 echo -e "\n${BLUE}Getting cookies...${NC}"
-curl -s -c "$TEST_DIR/cookies.txt" "https://webauthn.io/" > /dev/null
+curl -s -k -c "$TEST_DIR/cookies.txt" "https://webauthn.io/" > /dev/null
 
 # Step 1: Get authentication options
 echo -e "\n${BLUE}Step 1: Get authentication options${NC}"
@@ -38,7 +95,7 @@ AUTH_OPTIONS_PAYLOAD='{
 echo "$AUTH_OPTIONS_PAYLOAD" > "$TEST_DIR/auth_options_request.json"
 
 # Get authentication options
-AUTH_OPTIONS_RESPONSE=$(curl -s -X POST "https://webauthn.io/authentication/options" \
+AUTH_OPTIONS_RESPONSE=$(curl -s -k -X POST "https://webauthn.io/authentication/options" \
     -H "content-type: application/json" \
     -H "origin: https://webauthn.io" \
     -b "$TEST_DIR/cookies.txt" \
@@ -88,7 +145,7 @@ AUTH_VERIFY_PAYLOAD=$(jq -n --argjson response "$(cat "$TEST_DIR/assertion_respo
 
 echo "$AUTH_VERIFY_PAYLOAD" > "$TEST_DIR/auth_verify_request.json"
 
-AUTH_VERIFY_RESPONSE=$(curl -s -X POST "https://webauthn.io/authentication/verification" \
+AUTH_VERIFY_RESPONSE=$(curl -s -k -X POST "https://webauthn.io/authentication/verification" \
     -H "content-type: application/json" \
     -H "origin: https://webauthn.io" \
     -b "$TEST_DIR/cookies.txt" \
