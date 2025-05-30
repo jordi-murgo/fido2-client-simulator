@@ -6,6 +6,8 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.nio.ByteBuffer;
 import java.security.PrivateKey;
+import java.security.PublicKey;
+import java.security.Signature;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.List;
@@ -67,15 +69,10 @@ public class GetHandler extends BaseHandler implements CommandHandler {
             // Decode and ensure extensions are present
             optionsJson = EncodingUtils.tryDecodeBase64Json(optionsJson);
             optionsJson = ensureExtensionsInJson(optionsJson);
-            ObjectNode rootNode = (ObjectNode) jsonMapper.readTree(optionsJson);
-
 
             // Parse options
             PublicKeyCredentialRequestOptions options = jsonMapper.readValue(optionsJson, PublicKeyCredentialRequestOptions.class);
             options = ensureExtensions(options);
-
-            // We'll use the original challenge as-is
-            String originalChallenge = rootNode.get("challenge").asText();
 
             // 1. Select a credential
             ByteArray credentialId = selectCredential(options);
@@ -88,7 +85,7 @@ public class GetHandler extends BaseHandler implements CommandHandler {
             byte[] authenticatorData = createAuthenticatorData(options, credentialId);
             
             // 4. Create client data JSON
-            String clientDataJson = createClientDataJson(options, originalChallenge);
+            String clientDataJson = createClientDataJson(options);
             
             // 5. Generate signature
             byte[] signature = generateSignature(authenticatorData, clientDataJson, privateKey);
@@ -272,15 +269,15 @@ public class GetHandler extends BaseHandler implements CommandHandler {
         return composeAuthenticatorData(rpIdHash, flags, signCount);
     }
     
-    private String createClientDataJson(PublicKeyCredentialRequestOptions requestOptions, String originalChallenge) {
+    private String createClientDataJson(PublicKeyCredentialRequestOptions requestOptions) {
         // Create a raw JSON string to prevent escaping of the challenge
         String clientDataJson = String.format(
             "{\"type\":\"webauthn.get\",\"challenge\":\"%s\",\"origin\":\"https://%s\"}",
-            originalChallenge,
+            requestOptions.getChallenge().getBase64Url(),
             requestOptions.getRpId()
         );
         
-        log.debug("Created client data JSON with origin: https://{} and challenge: {}", requestOptions.getRpId(), originalChallenge);
+        log.debug("Created client data JSON with origin: https://{} and challenge: {}", requestOptions.getRpId(), requestOptions.getChallenge().getBase64Url());
         return clientDataJson;
     }
     
@@ -293,10 +290,6 @@ public class GetHandler extends BaseHandler implements CommandHandler {
         
         return SignatureUtils.sign(dataToSign, privateKey);
     }
-
-    // Estos métodos ya no son necesarios después de la refactorización del método handleGet
-    // Los métodos createAssertionResponse y createCredential se han eliminado porque ahora construimos
-    // directamente los nodos JSON con el formatter
 
     private static byte[] composeAuthenticatorData(byte[] rpIdHash, byte flags, long signCount) {
         byte[] signCountBytes = ByteBuffer.allocate(4).putInt((int) signCount).array();
