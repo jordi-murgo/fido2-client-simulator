@@ -133,7 +133,7 @@ public class CreateHandler extends BaseHandler implements CommandHandler {
             // Log the parsed options and the challenge
             log.debug("Parsed options class: {}", options.getClass().getName());
             log.debug("Challenge base64url: {}", options.getChallenge().getBase64Url());
-            log.debug("Original Challenge:", originalChallenge);
+            log.debug("Original Challenge: {}", originalChallenge);
 
             validateOptions(options);
     
@@ -148,7 +148,7 @@ public class CreateHandler extends BaseHandler implements CommandHandler {
             byte[] attestationObject = createAttestationObject(options, credentialId, keyPair.getPublic(), selectedAlg);
 
             // 4. Create client data JSON
-            String clientDataJson = createClientDataJson(options, originalChallenge);
+            String clientDataJson = createClientDataJson(options);
 
             // 5. Create response
             AuthenticatorAttestationResponse response = createAttestationResponse(attestationObject, clientDataJson);
@@ -291,7 +291,7 @@ public class CreateHandler extends BaseHandler implements CommandHandler {
         return cborWriter.writeValueAsBytes(attestationObject);
     }
 
-    private String createClientDataJson(PublicKeyCredentialCreationOptions options, String originalChallenge) throws JsonProcessingException {
+    private String createClientDataJson(PublicKeyCredentialCreationOptions options) throws JsonProcessingException {
         ObjectNode clientData = jsonMapper.createObjectNode();
         clientData.put("type", "webauthn.create");
         
