@@ -6,7 +6,6 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.nio.ByteBuffer;
 import java.security.PrivateKey;
-import java.security.SignatureException;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.List;
@@ -19,7 +18,6 @@ import com.example.storage.CredentialStore;
 import com.example.utils.EncodingUtils;
 import com.example.utils.HashUtils;
 import com.example.utils.SignatureUtils;
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.yubico.webauthn.data.ByteArray;
@@ -69,10 +67,15 @@ public class GetHandler extends BaseHandler implements CommandHandler {
             // Decode and ensure extensions are present
             optionsJson = EncodingUtils.tryDecodeBase64Json(optionsJson);
             optionsJson = ensureExtensionsInJson(optionsJson);
-            
+            ObjectNode rootNode = (ObjectNode) jsonMapper.readTree(optionsJson);
+
+
             // Parse options
             PublicKeyCredentialRequestOptions options = jsonMapper.readValue(optionsJson, PublicKeyCredentialRequestOptions.class);
             options = ensureExtensions(options);
+
+            // We'll use the original challenge as-is
+            String originalChallenge = rootNode.get("challenge").asText();
 
             // 1. Select a credential
             ByteArray credentialId = selectCredential(options);
@@ -85,7 +88,7 @@ public class GetHandler extends BaseHandler implements CommandHandler {
             byte[] authenticatorData = createAuthenticatorData(options, credentialId);
             
             // 4. Create client data JSON
-            String clientDataJson = createClientDataJson(options);
+            String clientDataJson = createClientDataJson(options, originalChallenge);
             
             // 5. Generate signature
             byte[] signature = generateSignature(authenticatorData, clientDataJson, privateKey);
@@ -269,18 +272,15 @@ public class GetHandler extends BaseHandler implements CommandHandler {
         return composeAuthenticatorData(rpIdHash, flags, signCount);
     }
     
-    private String createClientDataJson(PublicKeyCredentialRequestOptions requestOptions) {
-        // Get the challenge in base64url format and ensure it's not escaped in JSON
-        String challenge = requestOptions.getChallenge().getBase64Url();
-        
+    private String createClientDataJson(PublicKeyCredentialRequestOptions requestOptions, String originalChallenge) {
         // Create a raw JSON string to prevent escaping of the challenge
         String clientDataJson = String.format(
             "{\"type\":\"webauthn.get\",\"challenge\":\"%s\",\"origin\":\"https://%s\"}",
-            challenge,
+            originalChallenge,
             requestOptions.getRpId()
         );
         
-        log.debug("Created client data JSON with origin: https://{} and challenge: {}", requestOptions.getRpId(), challenge);
+        log.debug("Created client data JSON with origin: https://{} and challenge: {}", requestOptions.getRpId(), originalChallenge);
         return clientDataJson;
     }
     

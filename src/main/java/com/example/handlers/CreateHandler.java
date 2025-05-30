@@ -6,7 +6,6 @@ import java.nio.ByteBuffer;
 import java.security.KeyPair;
 import java.security.KeyStoreException;
 import java.security.PublicKey;
-import java.util.Base64;
 import java.util.Map;
 import java.util.UUID;
 
@@ -18,7 +17,6 @@ import com.example.utils.CoseKeyUtils;
 import com.example.utils.EncodingUtils;
 import com.example.utils.HashUtils;
 import com.example.utils.PemUtils;
-import com.example.utils.ResponseFormatter;
 import com.yubico.webauthn.data.ByteArray;
 import com.yubico.webauthn.data.PublicKeyCredentialCreationOptions;
 
@@ -30,9 +28,7 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.dataformat.cbor.CBORFactory;
 import com.upokecenter.cbor.CBORObject;
 import com.yubico.webauthn.data.AuthenticatorAttestationResponse;
-import com.yubico.webauthn.data.ByteArray;
 import com.yubico.webauthn.data.COSEAlgorithmIdentifier;
-import com.yubico.webauthn.data.PublicKeyCredentialCreationOptions;
 import com.yubico.webauthn.data.PublicKeyCredentialParameters;
 
 import lombok.extern.slf4j.Slf4j;
@@ -132,11 +128,13 @@ public class CreateHandler extends BaseHandler implements CommandHandler {
             PublicKeyCredentialCreationOptions options = jsonMapper.treeToValue(rootNode, PublicKeyCredentialCreationOptions.class);
             
             // We'll use the original challenge as-is
+            String originalChallenge = rootNode.get("challenge").asText();
             
             // Log the parsed options and the challenge
             log.debug("Parsed options class: {}", options.getClass().getName());
             log.debug("Challenge base64url: {}", options.getChallenge().getBase64Url());
-            
+            log.debug("Original Challenge:", originalChallenge);
+
             validateOptions(options);
     
             // 1. Select an algorithm (first supported)
@@ -150,7 +148,7 @@ public class CreateHandler extends BaseHandler implements CommandHandler {
             byte[] attestationObject = createAttestationObject(options, credentialId, keyPair.getPublic(), selectedAlg);
 
             // 4. Create client data JSON
-            String clientDataJson = createClientDataJson(options);
+            String clientDataJson = createClientDataJson(options, originalChallenge);
 
             // 5. Create response
             AuthenticatorAttestationResponse response = createAttestationResponse(attestationObject, clientDataJson);
@@ -293,27 +291,12 @@ public class CreateHandler extends BaseHandler implements CommandHandler {
         return cborWriter.writeValueAsBytes(attestationObject);
     }
 
-    private String createClientDataJson(PublicKeyCredentialCreationOptions options) throws JsonProcessingException {
+    private String createClientDataJson(PublicKeyCredentialCreationOptions options, String originalChallenge) throws JsonProcessingException {
         ObjectNode clientData = jsonMapper.createObjectNode();
         clientData.put("type", "webauthn.create");
         
-        // Get the challenge bytes directly from the options
-        String base64UrlChallenge = options.getChallenge().getBase64Url();
-        log.debug("Using original base64url challenge from options: {}", base64UrlChallenge);
-        
-        // Verify the challenge can be decoded and re-encoded to the same value
-        byte[] decodedChallenge = Base64.getUrlDecoder().decode(base64UrlChallenge);
-        String reencodedChallenge = Base64.getUrlEncoder().withoutPadding().encodeToString(decodedChallenge);
-        
-        if (!base64UrlChallenge.equals(reencodedChallenge)) {
-            log.warn("Challenge re-encoding mismatch! Original: {}, Re-encoded: {}", 
-                   base64UrlChallenge, reencodedChallenge);
-            // Use the re-encoded version to ensure it's valid
-            base64UrlChallenge = reencodedChallenge;
-        }
-        
         // Add challenge and origin to the client data
-        clientData.put("challenge", base64UrlChallenge);
+        clientData.put("challenge", options.getChallenge().getBase64Url());
         clientData.put("origin", "https://" + options.getRp().getId());
         
         // Create the JSON string

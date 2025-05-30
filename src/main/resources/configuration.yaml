@@ -78,6 +78,6 @@ formats:
     publicKey: remove
     publicKeyAlgorithm: remove
     signature: byteArray
-    userHandle: remove
+    userHandle: base64url
 
 
