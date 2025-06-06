@@ -112,8 +112,8 @@ public class HttpServerManager {
 
                 log.debug("Received {} request: {}", operation, requestBody);
 
-                // Create a copy of options for this request
-                CommandOptions requestOptions = createRequestOptions();
+                // Create a copy of options for this request with query parameters
+                CommandOptions requestOptions = createRequestOptions(exchange);
                 requestOptions.setOperation(operation);
 
                 // Create handler and process request
@@ -157,7 +157,7 @@ public class HttpServerManager {
             }
         }
 
-        private CommandOptions createRequestOptions() {
+        private CommandOptions createRequestOptions(HttpExchange exchange) {
             // Create a copy of the base options for this request
             CommandOptions requestOptions = new CommandOptions();
             requestOptions.setVerbose(options.isVerbose());
@@ -165,6 +165,52 @@ public class HttpServerManager {
             requestOptions.setRemoveNulls(options.isRemoveNulls());
             requestOptions.setFormat(options.getFormat());
             requestOptions.setJsonOnly(true); // Always JSON-only for HTTP responses
+            
+            // Parse query parameters and override options if specified
+            String query = exchange.getRequestURI().getQuery();
+            if (query != null && !query.trim().isEmpty()) {
+                String[] queryParams = query.split("&");
+                for (String param : queryParams) {
+                    String[] keyValue = param.split("=", 2);
+                    if (keyValue.length == 2) {
+                        String key = keyValue[0].trim().toLowerCase();
+                        String value = keyValue[1].trim();
+                        
+                        switch (key) {
+                            case "format":
+                                requestOptions.setFormat(value);
+                                log.debug("Override format from query parameter: {}", value);
+                                break;
+                            case "pretty":
+                                // Parse boolean values: true/false, 1/0, yes/no
+                                boolean prettyValue = "true".equalsIgnoreCase(value) || 
+                                                    "1".equals(value) || 
+                                                    "yes".equalsIgnoreCase(value);
+                                requestOptions.setPrettyPrint(prettyValue);
+                                log.debug("Override pretty from query parameter: {}", prettyValue);
+                                break;
+                            case "verbose":
+                                // Parse boolean values: true/false, 1/0, yes/no
+                                boolean verboseValue = "true".equalsIgnoreCase(value) || 
+                                                     "1".equals(value) || 
+                                                     "yes".equalsIgnoreCase(value);
+                                requestOptions.setVerbose(verboseValue);
+                                log.debug("Override verbose from query parameter: {}", verboseValue);
+                                break;
+                            case "remove-nulls":
+                            case "removenulls":
+                                // Parse boolean values: true/false, 1/0, yes/no
+                                boolean removeNullsValue = "true".equalsIgnoreCase(value) || 
+                                                         "1".equals(value) || 
+                                                         "yes".equalsIgnoreCase(value);
+                                requestOptions.setRemoveNulls(removeNullsValue);
+                                log.debug("Override removeNulls from query parameter: {}", removeNullsValue);
+                                break;
+                        }
+                    }
+                }
+            }
+            
             return requestOptions;
         }
     }
@@ -197,7 +243,7 @@ public class HttpServerManager {
                 log.debug("Processing info request via InfoHandler");
 
                 // Create a copy of options for this request
-                CommandOptions requestOptions = createRequestOptions();
+                CommandOptions requestOptions = createRequestOptions(exchange);
                 requestOptions.setOperation("info");
 
                 // Create InfoHandler and process request
@@ -241,7 +287,7 @@ public class HttpServerManager {
             }
         }
 
-        private CommandOptions createRequestOptions() {
+        private CommandOptions createRequestOptions(HttpExchange exchange) {
             // Create a copy of the base options for this request
             CommandOptions requestOptions = new CommandOptions();
             requestOptions.setVerbose(options.isVerbose());
@@ -249,6 +295,52 @@ public class HttpServerManager {
             requestOptions.setRemoveNulls(options.isRemoveNulls());
             requestOptions.setFormat(options.getFormat());
             requestOptions.setJsonOnly(true); // Always JSON-only for HTTP responses
+            
+            // Parse query parameters and override options if specified
+            String query = exchange.getRequestURI().getQuery();
+            if (query != null && !query.trim().isEmpty()) {
+                String[] queryParams = query.split("&");
+                for (String param : queryParams) {
+                    String[] keyValue = param.split("=", 2);
+                    if (keyValue.length == 2) {
+                        String key = keyValue[0].trim().toLowerCase();
+                        String value = keyValue[1].trim();
+                        
+                        switch (key) {
+                            case "format":
+                                requestOptions.setFormat(value);
+                                log.debug("Override format from query parameter: {}", value);
+                                break;
+                            case "pretty":
+                                // Parse boolean values: true/false, 1/0, yes/no
+                                boolean prettyValue = "true".equalsIgnoreCase(value) || 
+                                                    "1".equals(value) || 
+                                                    "yes".equalsIgnoreCase(value);
+                                requestOptions.setPrettyPrint(prettyValue);
+                                log.debug("Override pretty from query parameter: {}", prettyValue);
+                                break;
+                            case "verbose":
+                                // Parse boolean values: true/false, 1/0, yes/no
+                                boolean verboseValue = "true".equalsIgnoreCase(value) || 
+                                                     "1".equals(value) || 
+                                                     "yes".equalsIgnoreCase(value);
+                                requestOptions.setVerbose(verboseValue);
+                                log.debug("Override verbose from query parameter: {}", verboseValue);
+                                break;
+                            case "remove-nulls":
+                            case "removenulls":
+                                // Parse boolean values: true/false, 1/0, yes/no
+                                boolean removeNullsValue = "true".equalsIgnoreCase(value) || 
+                                                         "1".equals(value) || 
+                                                         "yes".equalsIgnoreCase(value);
+                                requestOptions.setRemoveNulls(removeNullsValue);
+                                log.debug("Override removeNulls from query parameter: {}", removeNullsValue);
+                                break;
+                        }
+                    }
+                }
+            }
+            
             return requestOptions;
         }
     }

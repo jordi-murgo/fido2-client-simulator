@@ -1,77 +1,13 @@
 #!/bin/bash
 
-# Colors for better output readability
-GREEN='\033[0;32m'
-BLUE='\033[0;34m'
-RED='\033[0;31m'
-YELLOW='\033[1;33m'
-NC='\033[0m' # No Color
+# Get the directory where this script is located
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-# Verificar dependencias necesarias
-echo -e "${BLUE}=== Verificando dependencias necesarias ===${NC}"
+# Source common functions
+source "$SCRIPT_DIR/common-functions.sh"
 
-# Función para verificar si un comando existe
-check_command() {
-    local cmd=$1
-    local name=$2
-    
-    if command -v $cmd &> /dev/null; then
-        echo -e "${GREEN}✓ $name encontrado${NC}"
-        return 0
-    else
-        echo -e "${RED}✗ $name no encontrado${NC}"
-        return 1
-    fi
-}
-
-# Verificar Java
-JAVA_OK=0
-if ! check_command java "Java"; then
-    JAVA_OK=1
-    echo -e "${YELLOW}Instrucciones para instalar Java:${NC}"
-    echo "  Windows: Descarga JDK desde https://adoptium.net/"
-    echo "  macOS: brew install --cask temurin"
-    echo "  Linux: sudo apt install default-jdk"
-    echo ""
-fi
-
-# Verificar curl
-CURL_OK=0
-if ! check_command curl "curl"; then
-    CURL_OK=1
-    echo -e "${YELLOW}Instrucciones para instalar curl:${NC}"
-    echo "  Windows: winget install cURL"
-    echo "  macOS: brew install curl"
-    echo "  Linux: sudo apt install curl"
-    echo ""
-fi
-
-# Verificar jq
-JQ_OK=0
-if ! check_command jq "jq"; then
-    JQ_OK=1
-    echo -e "${YELLOW}Instrucciones para instalar jq:${NC}"
-    echo "  Windows: winget install jqlang.jq"
-    echo "  macOS: brew install jq"
-    echo "  Linux: sudo apt install jq"
-    echo ""
-fi
-
-# Salir si falta alguna dependencia
-if [ $JAVA_OK -eq 1 ] || [ $CURL_OK -eq 1 ] || [ $JQ_OK -eq 1 ]; then
-    echo -e "${RED}Error: Faltan dependencias necesarias. Por favor, instale las herramientas faltantes e intente de nuevo.${NC}"
-    exit 1
-fi
-
-# Set the path to the JAR file
-JAR_PATH="target/fido2-client-simulator-1.3.0-SNAPSHOT.jar"
-
-# Check if JAR exists
-if [ ! -f "$JAR_PATH" ]; then
-    echo -e "${RED}Error: JAR file not found at $JAR_PATH${NC}"
-    echo -e "Please build the project using: mvn clean package"
-    exit 1
-fi
+# Setup environment (check dependencies and locate JAR)
+setup_environment
 
 # Create test directory
 TEST_DIR="target/webauthn-io-tutorial"

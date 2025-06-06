@@ -477,6 +477,66 @@ El simulador maneja automáticamente los desafíos durante el registro y autenti
 - **JSON parsing errors**: Check for syntax errors in your input JSON files.
 - **Missing credentials**: Use the `info` command to check available credentials.
 
+## HTTP Server Mode
+
+The FIDO2 Client Simulator can also run as an HTTP server, exposing REST endpoints for FIDO2 operations. This mode is useful for integration with web applications and automated testing.
+
+### Starting the Server
+
+```bash
+java -jar target/fido2-client-simulator-1.3.0-SNAPSHOT.jar --listen 8080
+```
+
+### Available Endpoints
+
+- **POST /create** - Create FIDO2 credentials
+- **POST /get** - Authenticate with FIDO2 credentials  
+- **GET /info** - Get server and credential information
+
+### Query Parameters
+
+All endpoints support optional query parameters for customizing output format and behavior:
+
+- `format`: Output format for binary fields (`default`, `bytes`, `ints`, `ping`)
+- `pretty`: Pretty-print JSON responses (`true`/`false`)
+- `verbose`: Enable detailed logging (`true`/`false`)
+- `remove-nulls`: Remove null values from responses (`true`/`false`)
+
+### Examples
+
+```bash
+# Create credential with pretty-printed output
+curl -X POST "http://localhost:8080/create?pretty=true" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "rp": {"name": "Test RP", "id": "localhost"},
+    "user": {"name": "testuser", "displayName": "Test User", "id": "dGVzdA"},
+    "challenge": "AAAAAAAAAAAAAAAAAAAAAA",
+    "pubKeyCredParams": [{"type": "public-key", "alg": -7}]
+  }'
+
+# Get server info with bytes format
+curl "http://localhost:8080/info?format=bytes&pretty=true"
+
+# Authenticate with ping format
+curl -X POST "http://localhost:8080/get?format=ping&pretty=true" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "challenge": "BBBBBBBBBBBBBBBBBBBBBB",
+    "rpId": "localhost",
+    "userVerification": "discouraged"
+  }'
+```
+
+### Features
+
+- **CORS Support**: Includes proper CORS headers for web integration
+- **Error Handling**: Consistent JSON error responses
+- **Format Flexibility**: Multiple output formats for different client needs
+- **Query Parameter Override**: Runtime configuration via URL parameters
+
+See [HTTP_SERVER_USAGE.md](HTTP_SERVER_USAGE.md) for detailed documentation and examples.
+
 ### Diagnostic Tips
 
 1. Use `--verbose` to get detailed logging and error information.

@@ -41,9 +41,15 @@ Creates a new FIDO2 credential.
 - Method: `POST`
 - Content-Type: `application/json`
 - Body: JSON with credential creation options
+- Query Parameters (optional):
+  - `format`: Output format for binary fields (`default`, `bytes`, `ints`, `ping`)
+  - `pretty`: Pretty-print JSON response (`true`, `false`, `1`, `0`, `yes`, `no`)
+  - `verbose`: Enable verbose logging (`true`, `false`, `1`, `0`, `yes`, `no`)
+  - `remove-nulls`: Remove null values from response (`true`, `false`, `1`, `0`, `yes`, `no`)
 
-**Request example:**
+**Request examples:**
 
+Basic request:
 ```bash
 curl -X POST http://localhost:8080/create \
   -H "Content-Type: application/json" \
@@ -68,6 +74,19 @@ curl -X POST http://localhost:8080/create \
       "authenticatorAttachment": "platform"
     },
     "attestation": "direct"
+  }'
+```
+
+With format and pretty-print parameters:
+
+```bash
+curl -X POST "http://localhost:8080/create?format=bytes&pretty=true" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "rp": {"name": "Test RP", "id": "localhost"},
+    "user": {"name": "testuser", "displayName": "Test User", "id": "dGVzdA"},
+    "challenge": "AAAAAAAAAAAAAAAAAAAAAA",
+    "pubKeyCredParams": [{"type": "public-key", "alg": -7}]
   }'
 ```
 
@@ -99,9 +118,15 @@ Authenticates using an existing FIDO2 credential.
 - Method: `POST`
 - Content-Type: `application/json`
 - Body: JSON with authentication options
+- Query Parameters (optional):
+  - `format`: Output format for binary fields (`default`, `bytes`, `ints`, `ping`)
+  - `pretty`: Pretty-print JSON response (`true`, `false`, `1`, `0`, `yes`, `no`)
+  - `verbose`: Enable verbose logging (`true`, `false`, `1`, `0`, `yes`, `no`)
+  - `remove-nulls`: Remove null values from response (`true`, `false`, `1`, `0`, `yes`, `no`)
 
-**Request example:**
+**Request examples:**
 
+Basic request:
 ```bash
 curl -X POST http://localhost:8080/get \
   -H "Content-Type: application/json" \
@@ -117,6 +142,69 @@ curl -X POST http://localhost:8080/get \
     "userVerification": "discouraged",
     "extensions": {}
   }'
+```
+
+With format parameters:
+
+```bash
+curl -X POST "http://localhost:8080/get?format=ping&pretty=true" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "challenge": "BBBBBBBBBBBBBBBBBBBBBB",
+    "rpId": "localhost",
+    "userVerification": "discouraged"
+  }'
+```
+
+### GET /info
+
+Gets detailed information about the server, stored credentials, and system status.
+
+**Request:**
+
+- Method: `GET`
+- Query Parameters (optional):
+  - `format`: Output format for binary fields (`default`, `bytes`, `ints`, `ping`)
+  - `pretty`: Pretty-print JSON response (`true`, `false`, `1`, `0`, `yes`, `no`)
+  - `verbose`: Enable verbose logging (`true`, `false`, `1`, `0`, `yes`, `no`)
+  - `remove-nulls`: Remove null values from response (`true`, `false`, `1`, `0`, `yes`, `no`)
+
+**Request examples:**
+
+Basic request:
+
+```bash
+curl http://localhost:8080/info
+```
+
+With pretty-print:
+
+```bash
+curl "http://localhost:8080/info?pretty=true"
+```
+
+**Response example:**
+
+```json
+{
+  "totalCredentials": 5,
+  "relyingParties": ["localhost", "webauthn.io"],
+  "credentials": [
+    {
+      "id": "HMznIHK3SKK32lewKBWYpQ",
+      "createdAt": "2025-06-06 08:58:44",
+      "signCount": 0,
+      "relyingParty": {
+        "name": "webauthn.io",
+        "id": "webauthn.io"
+      },
+      "user": {
+        "name": "tutorial_user",
+        "displayName": "Tutorial User"
+      }
+    }
+  ]
+}
 ```
 
 ## Error handling
@@ -136,6 +224,75 @@ All errors are returned as JSON with the following format:
 - `404`: Not found (invalid URL)
 - `405`: Method not allowed (only POST is accepted)
 - `500`: Internal server error
+
+## Query Parameters
+
+All endpoints (`/create`, `/get`, and `/info`) support the following optional query parameters:
+
+### Format Parameter
+
+The `format` parameter controls how binary fields are encoded in the response:
+
+- `default`: Uses base64url encoding for all binary fields (WebAuthn standard)
+- `bytes`: Outputs binary data as arrays of signed bytes (-128 to 127)
+- `ints`: Outputs binary data as arrays of unsigned integers (0-255)
+- `ping`: Optimized format for Ping Identity compatibility
+
+Example:
+
+```bash
+curl -X POST "http://localhost:8080/create?format=bytes" \
+  -H "Content-Type: application/json" \
+  -d '{"rp": {"name": "Test", "id": "localhost"}, ...}'
+```
+
+### Pretty Parameter
+
+The `pretty` parameter enables JSON pretty-printing for better readability:
+
+Accepted values: `true`, `false`, `1`, `0`, `yes`, `no`
+
+Example:
+
+```bash
+curl "http://localhost:8080/info?pretty=true"
+```
+
+### Verbose Parameter
+
+The `verbose` parameter enables detailed logging for debugging:
+
+Accepted values: `true`, `false`, `1`, `0`, `yes`, `no`
+
+Example:
+
+```bash
+curl -X POST "http://localhost:8080/create?verbose=true&pretty=true" \
+  -H "Content-Type: application/json" \
+  -d '{"rp": {"name": "Test", "id": "localhost"}, ...}'
+```
+
+### Remove Nulls Parameter
+
+The `remove-nulls` parameter removes null values from the JSON response:
+
+Accepted values: `true`, `false`, `1`, `0`, `yes`, `no`
+
+Example:
+
+```bash
+curl "http://localhost:8080/info?remove-nulls=true&pretty=true"
+```
+
+### Combining Parameters
+
+Multiple query parameters can be combined:
+
+```bash
+curl -X POST "http://localhost:8080/create?format=ping&pretty=true&verbose=true" \
+  -H "Content-Type: application/json" \
+  -d '{"rp": {"name": "Test", "id": "localhost"}, ...}'
+```
 
 ## Additional features
 
