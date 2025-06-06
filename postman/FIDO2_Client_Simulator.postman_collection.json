@@ -1,0 +1,788 @@
+{
+  "info": {
+    "_postman_id": "fido2-client-simulator-collection",
+    "name": "FIDO2 Client Simulator - HTTP Server",
+    "description": "Collection to test FIDO2 Client Simulator HTTP server endpoints for credential creation and authentication",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Local Testing",
+      "description": "Basic tests against the local HTTP server",
+      "item": [
+        {
+          "name": "1. Create FIDO2 Credential",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "// Test that the response is successful",
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "// Test that response contains required fields",
+                  "pm.test(\"Response contains credential data\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('id');",
+                  "    pm.expect(jsonData).to.have.property('rawId');",
+                  "    pm.expect(jsonData).to.have.property('type');",
+                  "    pm.expect(jsonData).to.have.property('response');",
+                  "    pm.expect(jsonData.type).to.eql('public-key');",
+                  "});",
+                  "",
+                  "// Store credential ID for use in authentication request",
+                  "pm.test(\"Store credential ID for next request\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.environment.set(\"credentialId\", jsonData.rawId);",
+                  "    pm.environment.set(\"credentialIdBase64\", jsonData.id);",
+                  "    console.log(\"Stored credential ID: \" + jsonData.rawId);",
+                  "});",
+                  "",
+                  "// Display credential info",
+                  "pm.test(\"Log credential information\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    console.log(\"Created credential:\");",
+                  "    console.log(\"- ID: \" + jsonData.id);",
+                  "    console.log(\"- Type: \" + jsonData.type);",
+                  "    console.log(\"- Authenticator Attachment: \" + jsonData.authenticatorAttachment);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"rp\": {\n    \"name\": \"Postman Test RP\",\n    \"id\": \"localhost\"\n  },\n  \"user\": {\n    \"name\": \"postman.testuser\",\n    \"displayName\": \"Postman Test User\",\n    \"id\": \"cG9zdG1hbl90ZXN0dXNlcl9pZA==\"\n  },\n  \"challenge\": \"UG9zdG1hblRlc3RDaGFsbGVuZ2U=\",\n  \"pubKeyCredParams\": [\n    { \"type\": \"public-key\", \"alg\": -257 },\n    { \"type\": \"public-key\", \"alg\": -7 }\n  ],\n  \"authenticatorSelection\": {\n    \"userVerification\": \"required\",\n    \"requireResidentKey\": false,\n    \"authenticatorAttachment\": \"platform\"\n  },\n  \"attestation\": \"direct\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/create",
+              "host": ["{{baseUrl}}"],
+              "path": ["create"]
+            },
+            "description": "Creates a new FIDO2 credential. The response will contain the credential ID which will be stored in environment variables for use in the authentication request."
+          },
+          "response": []
+        },
+        {
+          "name": "2. Authenticate with FIDO2 Credential",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  "// Check if we have a credential ID from the previous request",
+                  "var credentialId = pm.environment.get(\"credentialId\");",
+                  "if (!credentialId) {",
+                  "    console.log(\"WARNING: No credential ID found. Please run 'Create FIDO2 Credential' first.\");",
+                  "} else {",
+                  "    console.log(\"Using credential ID: \" + credentialId);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "// Test response based on whether we expect success or failure",
+                  "var credentialId = pm.environment.get(\"credentialId\");",
+                  "",
+                  "if (credentialId) {",
+                  "    // We have a credential ID, test for successful authentication",
+                  "    pm.test(\"Status code is 200 (successful authentication)\", function () {",
+                  "        pm.response.to.have.status(200);",
+                  "    });",
+                  "    ",
+                  "    pm.test(\"Response contains authentication data\", function () {",
+                  "        var jsonData = pm.response.json();",
+                  "        pm.expect(jsonData).to.have.property('id');",
+                  "        pm.expect(jsonData).to.have.property('rawId');",
+                  "        pm.expect(jsonData).to.have.property('type');",
+                  "        pm.expect(jsonData).to.have.property('response');",
+                  "        pm.expect(jsonData.type).to.eql('public-key');",
+                  "    });",
+                  "    ",
+                  "    pm.test(\"Log authentication result\", function () {",
+                  "        var jsonData = pm.response.json();",
+                  "        console.log(\"Authentication successful!\");",
+                  "        console.log(\"- Credential ID: \" + jsonData.id);",
+                  "        console.log(\"- User Handle: \" + (jsonData.response.userHandle || 'N/A'));",
+                  "    });",
+                  "} else {",
+                  "    // No credential ID, expect error",
+                  "    pm.test(\"Status code is 500 (no credential available)\", function () {",
+                  "        pm.response.to.have.status(500);",
+                  "    });",
+                  "    ",
+                  "    pm.test(\"Error response indicates no matching credentials\", function () {",
+                  "        var jsonData = pm.response.json();",
+                  "        pm.expect(jsonData).to.have.property('error');",
+                  "        pm.expect(jsonData.error).to.include('No matching credentials');",
+                  "    });",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"challenge\": \"QXV0aGVudGljYXRpb25DaGFsbGVuZ2U=\",\n  \"rpId\": \"localhost\",\n  \"allowCredentials\": [\n    {\n      \"type\": \"public-key\",\n      \"id\": \"{{credentialIdBase64}}\"\n    }\n  ],\n  \"userVerification\": \"required\",\n  \"extensions\": {}\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/get",
+              "host": ["{{baseUrl}}"],
+              "path": ["get"]
+            },
+            "description": "Authenticates using the FIDO2 credential created in the previous request. Uses the credential ID stored in environment variables."
+          },
+          "response": []
+        },
+        {
+          "name": "3. Test Error Handling - Invalid URL",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 404 for invalid endpoint\", function () {",
+                  "    pm.response.to.have.status(404);",
+                  "});",
+                  "",
+                  "pm.test(\"Response contains 404 error\", function () {",
+                  "    pm.expect(pm.response.text()).to.include(\"404 Not Found\");",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"test\": \"data\"}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/invalid-endpoint",
+              "host": ["{{baseUrl}}"],
+              "path": ["invalid-endpoint"]
+            },
+            "description": "Tests 404 error handling for invalid endpoints."
+          },
+          "response": []
+        },
+        {
+          "name": "4. Test Error Handling - Invalid Method",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 405 for invalid method\", function () {",
+                  "    pm.response.to.have.status(405);",
+                  "});",
+                  "",
+                  "pm.test(\"Response contains method not allowed error\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('error');",
+                  "    pm.expect(jsonData.error).to.include('Method not allowed');",
+                  "});",
+                  "",
+                  "pm.test(\"CORS headers are present\", function () {",
+                  "    pm.expect(pm.response.headers.get('Access-Control-Allow-Origin')).to.eql('*');",
+                  "    pm.expect(pm.response.headers.get('Access-Control-Allow-Methods')).to.include('POST');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/create",
+              "host": ["{{baseUrl}}"],
+              "path": ["create"]
+            },
+            "description": "Tests 405 error handling for unsupported HTTP methods."
+          },
+          "response": []
+        },
+        {
+          "name": "5. Test Error Handling - Empty Body",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 400 for empty body\", function () {",
+                  "    pm.response.to.have.status(400);",
+                  "});",
+                  "",
+                  "pm.test(\"Response contains empty body error\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('error');",
+                  "    pm.expect(jsonData.error).to.include('Request body is required');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": ""
+            },
+            "url": {
+              "raw": "{{baseUrl}}/create",
+              "host": ["{{baseUrl}}"],
+              "path": ["create"]
+            },
+            "description": "Tests 400 error handling for empty request body."
+          },
+          "response": []
+        },
+        {
+          "name": "6. Get Server Information",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response contains server information\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('name');",
+                  "    pm.expect(jsonData).to.have.property('version');",
+                  "    pm.expect(jsonData).to.have.property('status');",
+                  "    pm.expect(jsonData).to.have.property('endpoints');",
+                  "    pm.expect(jsonData).to.have.property('system');",
+                  "    pm.expect(jsonData).to.have.property('configuration');",
+                  "});",
+                  "",
+                  "pm.test(\"Server status is running\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.status).to.eql('running');",
+                  "});",
+                  "",
+                  "pm.test(\"All endpoints are documented\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.endpoints).to.have.property('POST /create');",
+                  "    pm.expect(jsonData.endpoints).to.have.property('POST /get');",
+                  "    pm.expect(jsonData.endpoints).to.have.property('GET /info');",
+                  "});",
+                  "",
+                  "pm.test(\"CORS headers are present\", function () {",
+                  "    pm.expect(pm.response.headers.get('Access-Control-Allow-Origin')).to.eql('*');",
+                  "    pm.expect(pm.response.headers.get('Access-Control-Allow-Methods')).to.include('GET');",
+                  "});",
+                  "",
+                  "pm.test(\"Log server information\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    console.log(\"Server Information:\");",
+                  "    console.log(\"- Name: \" + jsonData.name);",
+                  "    console.log(\"- Version: \" + jsonData.version);",
+                  "    console.log(\"- Status: \" + jsonData.status);",
+                  "    console.log(\"- Uptime: \" + (jsonData.uptime || 'N/A'));",
+                  "    console.log(\"- Java Version: \" + (jsonData.system ? jsonData.system.javaVersion : 'N/A'));",
+                  "    console.log(\"- OS: \" + (jsonData.system ? jsonData.system.osName + ' ' + jsonData.system.osVersion : 'N/A'));",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/info",
+              "host": ["{{baseUrl}}"],
+              "path": ["info"]
+            },
+            "description": "Gets server information including version, status, endpoints, and system details."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "WebAuthn.io Integration",
+      "description": "Integration tests with webauthn.io using our HTTP server as FIDO2 authenticator",
+      "item": [
+        {
+          "name": "1. Get WebAuthn.io Registration Options",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response contains registration options\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('rp');",
+                  "    pm.expect(jsonData).to.have.property('user');",
+                  "    pm.expect(jsonData).to.have.property('challenge');",
+                  "    pm.expect(jsonData).to.have.property('pubKeyCredParams');",
+                  "});",
+                  "",
+                  "// Store registration options for next request",
+                  "pm.test(\"Store registration options\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.environment.set(\"webauthn_registration_options\", JSON.stringify(jsonData));",
+                  "    console.log(\"Stored registration options for webauthn.io\");",
+                  "    console.log(\"Challenge: \" + jsonData.challenge);",
+                  "    console.log(\"RP: \" + jsonData.rp.name);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Origin",
+                "value": "https://webauthn.io"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"username\": \"{{webauthn_username}}\",\n    \"user_verification\": \"preferred\",\n    \"attestation\": \"direct\",\n    \"attachment\": \"platform\",\n    \"rp\": {\n        \"name\": \"WebAuthn.io\",\n        \"id\": \"webauthn.io\"\n    },\n    \"discoverable_credential\": \"preferred\",\n    \"algorithms\": [\"es256\", \"rs256\"]\n}"
+            },
+            "url": {
+              "raw": "https://webauthn.io/registration/options",
+              "protocol": "https",
+              "host": ["webauthn", "io"],
+              "path": ["registration", "options"]
+            },
+            "description": "Gets registration options from webauthn.io"
+          },
+          "response": []
+        },
+        {
+          "name": "2. Create Credential via HTTP Server",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  "// Get registration options from previous request",
+                  "var regOptions = pm.environment.get(\"webauthn_registration_options\");",
+                  "if (!regOptions) {",
+                  "    throw new Error(\"No registration options found. Please run 'Get WebAuthn.io Registration Options' first.\");",
+                  "}",
+                  "",
+                  "console.log(\"Using registration options from webauthn.io\");",
+                  "",
+                  "// Set the body to the registration options",
+                  "pm.request.body.raw = regOptions;"
+                ],
+                "type": "text/javascript"
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response contains credential data\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('id');",
+                  "    pm.expect(jsonData).to.have.property('rawId');",
+                  "    pm.expect(jsonData).to.have.property('type');",
+                  "    pm.expect(jsonData).to.have.property('response');",
+                  "    pm.expect(jsonData.type).to.eql('public-key');",
+                  "});",
+                  "",
+                  "// Store credential for webauthn.io verification",
+                  "pm.test(\"Store credential for verification\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.environment.set(\"webauthn_credential\", JSON.stringify(jsonData));",
+                  "    pm.environment.set(\"webauthn_credential_id\", jsonData.id);",
+                  "    console.log(\"Stored credential for webauthn.io verification\");",
+                  "    console.log(\"Credential ID: \" + jsonData.id);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "// This will be replaced by pre-request script with registration options"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/create",
+              "host": ["{{baseUrl}}"],
+              "path": ["create"]
+            },
+            "description": "Creates credential using our HTTP server with webauthn.io registration options"
+          },
+          "response": []
+        },
+        {
+          "name": "3. Verify Registration with WebAuthn.io",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  "// Get credential from previous request",
+                  "var credential = pm.environment.get(\"webauthn_credential\");",
+                  "if (!credential) {",
+                  "    throw new Error(\"No credential found. Please run 'Create Credential via HTTP Server' first.\");",
+                  "}",
+                  "",
+                  "// Prepare verification payload",
+                  "var verificationPayload = {",
+                  "    \"username\": pm.environment.get(\"webauthn_username\") || \"postman_user\",",
+                  "    \"response\": JSON.parse(credential)",
+                  "};",
+                  "",
+                  "pm.request.body.raw = JSON.stringify(verificationPayload);",
+                  "console.log(\"Prepared verification payload for webauthn.io\");"
+                ],
+                "type": "text/javascript"
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Registration verification successful\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    // WebAuthn.io may return different success indicators",
+                  "    var isSuccess = jsonData.success === true || ",
+                  "                   jsonData.verified === true || ",
+                  "                   !jsonData.hasOwnProperty('error');",
+                  "    ",
+                  "    pm.expect(isSuccess).to.be.true;",
+                  "    console.log(\"Registration verified successfully on webauthn.io!\");",
+                  "});",
+                  "",
+                  "pm.test(\"Log verification details\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    console.log(\"Verification response:\", JSON.stringify(jsonData, null, 2));",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Origin",
+                "value": "https://webauthn.io"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "// This will be replaced by pre-request script"
+            },
+            "url": {
+              "raw": "https://webauthn.io/registration/verification",
+              "protocol": "https",
+              "host": ["webauthn", "io"],
+              "path": ["registration", "verification"]
+            },
+            "description": "Verifies the created credential with webauthn.io"
+          },
+          "response": []
+        },
+        {
+          "name": "4. Get WebAuthn.io Authentication Options",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response contains authentication options\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('challenge');",
+                  "    pm.expect(jsonData).to.have.property('rpId');",
+                  "});",
+                  "",
+                  "// Store authentication options for next request",
+                  "pm.test(\"Store authentication options\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.environment.set(\"webauthn_auth_options\", JSON.stringify(jsonData));",
+                  "    console.log(\"Stored authentication options for webauthn.io\");",
+                  "    console.log(\"Challenge: \" + jsonData.challenge);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Origin",
+                "value": "https://webauthn.io"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"username\": \"{{webauthn_username}}\",\n    \"user_verification\": \"preferred\",\n    \"attachment\": \"platform\"\n}"
+            },
+            "url": {
+              "raw": "https://webauthn.io/authentication/options",
+              "protocol": "https",
+              "host": ["webauthn", "io"],
+              "path": ["authentication", "options"]
+            },
+            "description": "Gets authentication options from webauthn.io"
+          },
+          "response": []
+        },
+        {
+          "name": "5. Generate Assertion via HTTP Server",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  "// Get authentication options from previous request",
+                  "var authOptions = pm.environment.get(\"webauthn_auth_options\");",
+                  "if (!authOptions) {",
+                  "    throw new Error(\"No authentication options found. Please run 'Get WebAuthn.io Authentication Options' first.\");",
+                  "}",
+                  "",
+                  "console.log(\"Using authentication options from webauthn.io\");",
+                  "",
+                  "// Set the body to the authentication options",
+                  "pm.request.body.raw = authOptions;"
+                ],
+                "type": "text/javascript"
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response contains assertion data\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('id');",
+                  "    pm.expect(jsonData).to.have.property('rawId');",
+                  "    pm.expect(jsonData).to.have.property('type');",
+                  "    pm.expect(jsonData).to.have.property('response');",
+                  "    pm.expect(jsonData.type).to.eql('public-key');",
+                  "});",
+                  "",
+                  "// Store assertion for webauthn.io verification",
+                  "pm.test(\"Store assertion for verification\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.environment.set(\"webauthn_assertion\", JSON.stringify(jsonData));",
+                  "    console.log(\"Stored assertion for webauthn.io verification\");",
+                  "    console.log(\"Assertion ID: \" + jsonData.id);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "// This will be replaced by pre-request script with authentication options"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/get",
+              "host": ["{{baseUrl}}"],
+              "path": ["get"]
+            },
+            "description": "Generates assertion using our HTTP server with webauthn.io authentication options"
+          },
+          "response": []
+        },
+        {
+          "name": "6. Verify Authentication with WebAuthn.io",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  "// Get assertion from previous request",
+                  "var assertion = pm.environment.get(\"webauthn_assertion\");",
+                  "if (!assertion) {",
+                  "    throw new Error(\"No assertion found. Please run 'Generate Assertion via HTTP Server' first.\");",
+                  "}",
+                  "",
+                  "// Prepare verification payload",
+                  "var verificationPayload = {",
+                  "    \"username\": pm.environment.get(\"webauthn_username\") || \"postman_user\",",
+                  "    \"response\": JSON.parse(assertion)",
+                  "};",
+                  "",
+                  "pm.request.body.raw = JSON.stringify(verificationPayload);",
+                  "console.log(\"Prepared authentication verification payload for webauthn.io\");"
+                ],
+                "type": "text/javascript"
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Authentication verification successful\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    // WebAuthn.io returns 'verified': true for successful authentication",
+                  "    var isSuccess = jsonData.verified === true;",
+                  "    ",
+                  "    pm.expect(isSuccess).to.be.true;",
+                  "    console.log(\"Authentication verified successfully on webauthn.io!\");",
+                  "});",
+                  "",
+                  "pm.test(\"Log authentication verification details\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    console.log(\"Authentication verification response:\", JSON.stringify(jsonData, null, 2));",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Origin",
+                "value": "https://webauthn.io"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "// This will be replaced by pre-request script"
+            },
+            "url": {
+              "raw": "https://webauthn.io/authentication/verification",
+              "protocol": "https",
+              "host": ["webauthn", "io"],
+              "path": ["authentication", "verification"]
+            },
+            "description": "Verifies the generated assertion with webauthn.io"
+          },
+          "response": []
+        }
+      ]
+    }
+  ],
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "// Set default base URL if not already set",
+          "if (!pm.environment.get(\"baseUrl\")) {",
+          "    pm.environment.set(\"baseUrl\", \"http://localhost:8080\");",
+          "}"
+        ]
+      }
+    }
+  ],
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:8080",
+      "type": "string"
+    }
+  ]
+}

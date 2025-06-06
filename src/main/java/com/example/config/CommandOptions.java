@@ -20,4 +20,5 @@ public class CommandOptions {
     private String operation;
     private String jsonInputString;
     private boolean removeNulls = false;
+    private Integer listenPort;
 }

@@ -5,21 +5,21 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.util.concurrent.Callable;
 
-import com.example.config.CommandOptions;
-
-import ch.qos.logback.classic.Level;
-import ch.qos.logback.classic.LoggerContext;
 import org.slf4j.LoggerFactory; // For SLF4J/Logback dynamic configuration
+
+import com.example.config.CommandOptions;
 import com.example.handlers.CommandHandler;
 import com.example.handlers.HandlerFactory;
+import com.example.server.HttpServerManager;
 import com.example.storage.CredentialStore;
 import com.example.storage.KeyStoreManager;
-
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.datatype.jdk8.Jdk8Module;
 
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.LoggerContext;
 import lombok.extern.slf4j.Slf4j;
 import picocli.CommandLine;
 import picocli.CommandLine.Command;
@@ -43,6 +43,7 @@ import picocli.CommandLine.Parameters;
  *   java -jar fido2-client-simulator.jar create -i create_options.json --json-only
  *   java -jar fido2-client-simulator.jar get -i get_options.json --output result.json
  *   java -jar fido2-client-simulator.jar info --pretty --verbose
+ *   java -jar fido2-client-simulator.jar --listen 8080
  * </pre>
  *
  * Dependencies:
@@ -57,7 +58,7 @@ import picocli.CommandLine.Parameters;
  * @since 2025-05-09
  */
 @Command(name = "fido2-client", mixinStandardHelpOptions = true, version = "FIDO2 Client Simulator 1.3.0",
-        description = "Simulates FIDO2 client operations (create/get/info).")
+        description = "Simulates FIDO2 client operations (create/get/info) or runs as HTTP server.")
 @Slf4j
 public class Fido2ClientApp implements Callable<Integer> {
 
@@ -116,7 +117,12 @@ public class Fido2ClientApp implements Callable<Integer> {
         options.setFormat(format);
     }
     
-    @Parameters(index = "0", description = "The operation to perform: 'create', 'get', or 'info'.")
+    @Option(names = {"--listen"}, description = "Start HTTP server on the specified port (e.g., --listen 8080)")
+    public void setListenPort(Integer port) {
+        options.setListenPort(port);
+    }
+    
+    @Parameters(index = "0", arity = "0..1", description = "The operation to perform: 'create', 'get', or 'info'. Not required in server mode.")
     public void setOperation(String operation) {
         options.setOperation(operation);
     }
@@ -183,6 +189,17 @@ public class Fido2ClientApp implements Callable<Integer> {
         // Exclude null values
         jsonMapper.setSerializationInclusion(JsonInclude.Include.NON_NULL);
         
+        // Check if we should run in server mode
+        if (options.getListenPort() != null) {
+            return runServerMode();
+        }
+        
+        // Validate operation is provided for CLI mode
+        if (options.getOperation() == null || options.getOperation().trim().isEmpty()) {
+            System.err.println("ERROR: Operation is required when not running in server mode. Use 'create', 'get', or 'info'.");
+            return 1;
+        }
+        
         // For info operation, input JSON is optional
         String inputJson = null;
         if (!"info".equalsIgnoreCase(options.getOperation())) {
@@ -227,6 +244,34 @@ public class Fido2ClientApp implements Callable<Integer> {
             return 0; // Success
         } catch (Exception e) {
             reportError("Error during operation '" + options.getOperation() + "': " + e.getMessage(), e);
+            return 1;
+        }
+    }
+    
+    /**
+     * Runs the application in HTTP server mode.
+     * 
+     * @return Exit code (0 for success, 1 for error)
+     */
+    private Integer runServerMode() {
+        try {
+            HttpServerManager serverManager = new HttpServerManager(handlerFactory, options, jsonMapper);
+            serverManager.start(options.getListenPort());
+            
+            log.info("Server is running. Press Ctrl+C to stop.");
+            
+            // Add shutdown hook to gracefully stop the server
+            Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+                log.info("Shutting down server...");
+                serverManager.stop();
+            }));
+            
+            // Keep the main thread alive
+            Thread.currentThread().join();
+            
+            return 0;
+        } catch (Exception e) {
+            reportError("Failed to start HTTP server: " + e.getMessage(), e);
             return 1;
         }
     }
