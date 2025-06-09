@@ -149,12 +149,14 @@ public class CreateHandler extends BaseHandler implements CommandHandler {
             // 4. Create client data JSON with original challenge format
             String clientDataJson = createClientDataJson(options, originalChallenge);
 
-            // 5. Create response
-            AuthenticatorAttestationResponse response = createAttestationResponse(attestationObject, clientDataJson);
+            // 5. Create response ByteArrays directly (bypass WebAuthn validation)
+            ByteArray attestationByteArray = new ByteArray(attestationObject);
+            ByteArray clientDataJsonByteArray = new ByteArray(clientDataJson.getBytes(java.nio.charset.StandardCharsets.UTF_8));
             
-            // Log attestation object details
+            // Log response details if verbose
             if(this.options.isVerbose()) {
-                logAttestationObject(response.getAttestationObject().getBytes());
+                logAttestationObject(attestationByteArray.getBytes());
+                log.debug("ClientData JSON (original challenge): {}", clientDataJson);
             }
             
             // Initialize the response formatter with the requested format
@@ -177,18 +179,18 @@ public class CreateHandler extends BaseHandler implements CommandHandler {
                 // Build response node with all expected fields (WebAuthn spec)
                 ObjectNode responseNode = jsonMapper.createObjectNode();
                 
-                // Format clientDataJSON according to the configuration
-                formatter.formatBytes(responseNode, "clientDataJSON", response.getClientDataJSON());
+                // Format clientDataJSON according to the configuration (bypassing WebAuthn validation)
+                formatter.formatBytes(responseNode, "clientDataJSON", clientDataJsonByteArray);
 
                 // Format attestationObject according to the configuration
-                formatter.formatBytes(responseNode, "attestationObject", response.getAttestationObject());
+                formatter.formatBytes(responseNode, "attestationObject", attestationByteArray);
 
                 // authenticatorAttachment at root (platform / cross-platform) - Chrome extension
                 formatter.formatString(credentialNode,"authenticatorAttachment", "platform");
 
                 // Extract and format authenticatorData from attestationObject (CBOR decode)
                 try {
-                    byte[] attObjBytes = response.getAttestationObject().getBytes();
+                    byte[] attObjBytes = attestationByteArray.getBytes();
                     com.fasterxml.jackson.dataformat.cbor.CBORFactory cborFactory = new com.fasterxml.jackson.dataformat.cbor.CBORFactory();
                     com.fasterxml.jackson.databind.ObjectMapper cborMapper = new com.fasterxml.jackson.databind.ObjectMapper(cborFactory);
                     Map attObjMap = cborMapper.readValue(attObjBytes, Map.class);
@@ -324,10 +326,12 @@ public class CreateHandler extends BaseHandler implements CommandHandler {
             // Convert raw bytes directly - no intermediate conversions
             ByteArray attestationByteArray = new ByteArray(attestationObject);
             
-            // For client data JSON, ensure proper encoding
+            // For client data JSON, ensure proper encoding and bypass WebAuthn validation
+            // that expects Base64URL challenge format by creating ByteArray directly
             byte[] clientDataJsonBytes = clientDataJson.getBytes(java.nio.charset.StandardCharsets.UTF_8);
             ByteArray clientDataJsonByteArray = new ByteArray(clientDataJsonBytes);
             
+            // Build the response without triggering CollectedClientData validation
             return AuthenticatorAttestationResponse.builder()
                 .attestationObject(attestationByteArray)
                 .clientDataJSON(clientDataJsonByteArray)
