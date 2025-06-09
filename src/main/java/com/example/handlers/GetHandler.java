@@ -1,13 +1,10 @@
 package com.example.handlers;
 
-import com.example.config.CommandOptions;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.nio.ByteBuffer;
 import java.security.PrivateKey;
-import java.security.PublicKey;
-import java.security.Signature;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.List;
@@ -15,6 +12,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
+import com.example.config.CommandOptions;
 import com.example.storage.CredentialMetadata;
 import com.example.storage.CredentialStore;
 import com.example.utils.EncodingUtils;
@@ -70,6 +68,10 @@ public class GetHandler extends BaseHandler implements CommandHandler {
             optionsJson = EncodingUtils.tryDecodeBase64Json(optionsJson);
             optionsJson = ensureExtensionsInJson(optionsJson);
 
+            // Parse the original JSON to extract the original challenge format
+            ObjectNode originalJson = (ObjectNode) jsonMapper.readTree(optionsJson);
+            String originalChallenge = originalJson.get("challenge").asText();
+
             // Parse options
             PublicKeyCredentialRequestOptions options = jsonMapper.readValue(optionsJson, PublicKeyCredentialRequestOptions.class);
             options = ensureExtensions(options);
@@ -84,8 +86,8 @@ public class GetHandler extends BaseHandler implements CommandHandler {
             // 3. Create authenticator data
             byte[] authenticatorData = createAuthenticatorData(options, credentialId);
             
-            // 4. Create client data JSON
-            String clientDataJson = createClientDataJson(options);
+            // 4. Create client data JSON with original challenge format
+            String clientDataJson = createClientDataJson(options, originalChallenge);
             
             // 5. Generate signature
             byte[] signature = generateSignature(authenticatorData, clientDataJson, privateKey);
@@ -269,15 +271,15 @@ public class GetHandler extends BaseHandler implements CommandHandler {
         return composeAuthenticatorData(rpIdHash, flags, signCount);
     }
     
-    private String createClientDataJson(PublicKeyCredentialRequestOptions requestOptions) {
+    private String createClientDataJson(PublicKeyCredentialRequestOptions requestOptions, String originalChallenge) {
         // Create a raw JSON string to prevent escaping of the challenge
         String clientDataJson = String.format(
             "{\"type\":\"webauthn.get\",\"challenge\":\"%s\",\"origin\":\"https://%s\"}",
-            requestOptions.getChallenge().getBase64Url(),
+            originalChallenge,
             requestOptions.getRpId()
         );
         
-        log.debug("Created client data JSON with origin: https://{} and challenge: {}", requestOptions.getRpId(), requestOptions.getChallenge().getBase64Url());
+        log.debug("Created client data JSON with origin: https://{} and challenge: {}", requestOptions.getRpId(), originalChallenge);
         return clientDataJson;
     }
     

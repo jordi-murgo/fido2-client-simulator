@@ -1,6 +1,5 @@
 package com.example.handlers;
 
-import com.example.config.CommandOptions;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.security.KeyPair;
@@ -9,6 +8,7 @@ import java.security.PublicKey;
 import java.util.Map;
 import java.util.UUID;
 
+import com.example.config.CommandOptions;
 import com.example.storage.CredentialMetadata;
 import com.example.storage.CredentialStore;
 import com.example.storage.KeyStoreManager;
@@ -17,9 +17,6 @@ import com.example.utils.CoseKeyUtils;
 import com.example.utils.EncodingUtils;
 import com.example.utils.HashUtils;
 import com.example.utils.PemUtils;
-import com.yubico.webauthn.data.ByteArray;
-import com.yubico.webauthn.data.PublicKeyCredentialCreationOptions;
-
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -28,7 +25,9 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.dataformat.cbor.CBORFactory;
 import com.upokecenter.cbor.CBORObject;
 import com.yubico.webauthn.data.AuthenticatorAttestationResponse;
+import com.yubico.webauthn.data.ByteArray;
 import com.yubico.webauthn.data.COSEAlgorithmIdentifier;
+import com.yubico.webauthn.data.PublicKeyCredentialCreationOptions;
 import com.yubico.webauthn.data.PublicKeyCredentialParameters;
 
 import lombok.extern.slf4j.Slf4j;
@@ -124,11 +123,11 @@ public class CreateHandler extends BaseHandler implements CommandHandler {
             
             log.debug("Cleaned JSON: {}", rootNode.toString());
 
-            // Now parse the full options object
-            PublicKeyCredentialCreationOptions options = jsonMapper.treeToValue(rootNode, PublicKeyCredentialCreationOptions.class);
-            
             // We'll use the original challenge as-is
             String originalChallenge = rootNode.get("challenge").asText();
+
+            // Now parse the full options object
+            PublicKeyCredentialCreationOptions options = jsonMapper.treeToValue(rootNode, PublicKeyCredentialCreationOptions.class);
             
             // Log the parsed options and the challenge
             log.debug("Parsed options class: {}", options.getClass().getName());
@@ -147,8 +146,8 @@ public class CreateHandler extends BaseHandler implements CommandHandler {
             // 3. Create attestation object
             byte[] attestationObject = createAttestationObject(options, credentialId, keyPair.getPublic(), selectedAlg);
 
-            // 4. Create client data JSON
-            String clientDataJson = createClientDataJson(options);
+            // 4. Create client data JSON with original challenge format
+            String clientDataJson = createClientDataJson(options, originalChallenge);
 
             // 5. Create response
             AuthenticatorAttestationResponse response = createAttestationResponse(attestationObject, clientDataJson);
@@ -246,9 +245,6 @@ public class CreateHandler extends BaseHandler implements CommandHandler {
         } catch (IOException | KeyStoreException e) {
             log.error("Error during credential creation: {}", e.getMessage(), e);
             throw new Exception("Error during credential creation: " + e.getMessage(), e);
-        } catch (Exception ex) {
-            log.error("Unexpected error during credential creation: {}", ex.getMessage(), ex);
-            throw new Exception("Unexpected error: " + ex.getMessage(), ex);
         }
     }
 
@@ -291,12 +287,12 @@ public class CreateHandler extends BaseHandler implements CommandHandler {
         return cborWriter.writeValueAsBytes(attestationObject);
     }
 
-    private String createClientDataJson(PublicKeyCredentialCreationOptions options) throws JsonProcessingException {
+    private String createClientDataJson(PublicKeyCredentialCreationOptions options, String originalChallenge) throws JsonProcessingException {
         ObjectNode clientData = jsonMapper.createObjectNode();
         clientData.put("type", "webauthn.create");
         
-        // Add challenge and origin to the client data
-        clientData.put("challenge", options.getChallenge().getBase64Url());
+        // Add original challenge and origin to the client data
+        clientData.put("challenge", originalChallenge);
         clientData.put("origin", "https://" + options.getRp().getId());
         
         // Create the JSON string
