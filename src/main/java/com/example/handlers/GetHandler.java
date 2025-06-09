@@ -68,10 +68,6 @@ public class GetHandler extends BaseHandler implements CommandHandler {
             optionsJson = EncodingUtils.tryDecodeBase64Json(optionsJson);
             optionsJson = ensureExtensionsInJson(optionsJson);
 
-            // Parse the original JSON to extract the original challenge format
-            ObjectNode originalJson = (ObjectNode) jsonMapper.readTree(optionsJson);
-            String originalChallenge = originalJson.get("challenge").asText();
-
             // Parse options - ByteArrayDeserializer will handle format detection automatically
             PublicKeyCredentialRequestOptions options = jsonMapper.readValue(optionsJson, PublicKeyCredentialRequestOptions.class);
             options = ensureExtensions(options);
@@ -87,7 +83,7 @@ public class GetHandler extends BaseHandler implements CommandHandler {
             byte[] authenticatorData = createAuthenticatorData(options, credentialId);
             
             // 4. Create client data JSON with original challenge format
-            String clientDataJson = createClientDataJson(options, originalChallenge);
+            String clientDataJson = createClientDataJson(options);
             
             // 5. Generate signature
             byte[] signature = generateSignature(authenticatorData, clientDataJson, privateKey);
@@ -271,15 +267,15 @@ public class GetHandler extends BaseHandler implements CommandHandler {
         return composeAuthenticatorData(rpIdHash, flags, signCount);
     }
     
-    private String createClientDataJson(PublicKeyCredentialRequestOptions requestOptions, String originalChallenge) {
+    private String createClientDataJson(PublicKeyCredentialRequestOptions requestOptions) {
         // Create a raw JSON string to prevent escaping of the challenge
         String clientDataJson = String.format(
             "{\"type\":\"webauthn.get\",\"challenge\":\"%s\",\"origin\":\"https://%s\"}",
-            originalChallenge,
+            requestOptions.getChallenge().getBase64Url(),
             requestOptions.getRpId()
         );
         
-        log.debug("Created client data JSON with origin: https://{} and challenge: {}", requestOptions.getRpId(), originalChallenge);
+        log.debug("Created client data JSON: {}", clientDataJson);
         return clientDataJson;
     }
     

@@ -147,7 +147,7 @@ public class CreateHandler extends BaseHandler implements CommandHandler {
             byte[] attestationObject = createAttestationObject(options, credentialId, keyPair.getPublic(), selectedAlg);
 
             // 4. Create client data JSON with original challenge format
-            String clientDataJson = createClientDataJson(options, originalChallenge);
+            String clientDataJson = createClientDataJson(options);
 
             // 5. Create response ByteArrays directly (bypass WebAuthn validation)
             ByteArray attestationByteArray = new ByteArray(attestationObject);
@@ -289,19 +289,16 @@ public class CreateHandler extends BaseHandler implements CommandHandler {
         return cborWriter.writeValueAsBytes(attestationObject);
     }
 
-    private String createClientDataJson(PublicKeyCredentialCreationOptions options, String originalChallenge) throws JsonProcessingException {
-        ObjectNode clientData = jsonMapper.createObjectNode();
-        clientData.put("type", "webauthn.create");
+    private String createClientDataJson(PublicKeyCredentialCreationOptions createOptions) throws JsonProcessingException {
+        // Create a raw JSON string to prevent escaping of the challenge
+        String clientDataJson = String.format(
+            "{\"type\":\"webauthn.create\",\"challenge\":\"%s\",\"origin\":\"https://%s\"}",
+            createOptions.getChallenge().getBase64Url(),
+            createOptions.getRp().getId()
+        );
         
-        // Add original challenge and origin to the client data
-        clientData.put("challenge", originalChallenge);
-        clientData.put("origin", "https://" + options.getRp().getId());
-        
-        // Create the JSON string
-        String json = clientData.toString();
-        log.debug("Final client data JSON: {}", json);
-        
-        return json;
+        log.debug("Created client data JSON: {}", clientDataJson);
+        return clientDataJson;
     }
 
     /**

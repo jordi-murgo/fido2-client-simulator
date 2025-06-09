@@ -1,10 +1,12 @@
 package com.example.handlers;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
 
 import com.example.config.CommandOptions;
 import com.example.storage.CredentialStore;
-import com.example.utils.EncodingUtils;
 import com.example.utils.Fido2JacksonModule;
 import com.example.utils.ResponseFormatter;
 import com.fasterxml.jackson.annotation.JsonInclude;
