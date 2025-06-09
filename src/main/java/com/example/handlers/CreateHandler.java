@@ -123,16 +123,16 @@ public class CreateHandler extends BaseHandler implements CommandHandler {
             
             log.debug("Cleaned JSON: {}", rootNode.toString());
 
-            // We'll use the original challenge as-is
+            // Extract the original challenge format
             String originalChallenge = rootNode.get("challenge").asText();
 
-            // Now parse the full options object
+            // Parse options - ByteArrayDeserializer will handle format detection automatically
             PublicKeyCredentialCreationOptions options = jsonMapper.treeToValue(rootNode, PublicKeyCredentialCreationOptions.class);
             
-            // Log the parsed options and the challenge
+            // Log the parsed options
             log.debug("Parsed options class: {}", options.getClass().getName());
-            log.debug("Challenge base64url: {}", options.getChallenge().getBase64Url());
-            log.debug("Original Challenge: {}", originalChallenge);
+            log.debug("Challenge base64url (WebAuthn internal): {}", options.getChallenge().getBase64Url());
+            log.debug("Original Challenge (preserved): {}", originalChallenge);
 
             validateOptions(options);
     

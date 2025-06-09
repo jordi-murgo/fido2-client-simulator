@@ -72,7 +72,7 @@ public class GetHandler extends BaseHandler implements CommandHandler {
             ObjectNode originalJson = (ObjectNode) jsonMapper.readTree(optionsJson);
             String originalChallenge = originalJson.get("challenge").asText();
 
-            // Parse options
+            // Parse options - ByteArrayDeserializer will handle format detection automatically
             PublicKeyCredentialRequestOptions options = jsonMapper.readValue(optionsJson, PublicKeyCredentialRequestOptions.class);
             options = ensureExtensions(options);
 
