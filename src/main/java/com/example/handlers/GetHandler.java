@@ -18,6 +18,7 @@ import com.example.storage.CredentialStore;
 import com.example.utils.EncodingUtils;
 import com.example.utils.HashUtils;
 import com.example.utils.SignatureUtils;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.yubico.webauthn.data.ByteArray;
@@ -83,7 +84,7 @@ public class GetHandler extends BaseHandler implements CommandHandler {
             byte[] authenticatorData = createAuthenticatorData(options, credentialId);
             
             // 4. Create client data JSON with original challenge format
-            String clientDataJson = createClientDataJson(options);
+            String clientDataJson = createClientDataJson(options, optionsJson);
             
             // 5. Generate signature
             byte[] signature = generateSignature(authenticatorData, clientDataJson, privateKey);
@@ -267,16 +268,99 @@ public class GetHandler extends BaseHandler implements CommandHandler {
         return composeAuthenticatorData(rpIdHash, flags, signCount);
     }
     
-    private String createClientDataJson(PublicKeyCredentialRequestOptions requestOptions) {
-        // Create a raw JSON string to prevent escaping of the challenge
-        String clientDataJson = String.format(
-            "{\"type\":\"webauthn.get\",\"challenge\":\"%s\",\"origin\":\"https://%s\"}",
-            requestOptions.getChallenge().getBase64Url(),
-            requestOptions.getRpId()
-        );
-        
-        log.debug("Created client data JSON: {}", clientDataJson);
-        return clientDataJson;
+    private String createClientDataJson(PublicKeyCredentialRequestOptions requestOptions, String originalJson) {
+        try {
+            // Create client data JSON object
+            ObjectNode clientData = jsonMapper.createObjectNode();
+            clientData.put("type", "webauthn.get");
+            clientData.put("challenge", requestOptions.getChallenge().getBase64Url());
+            clientData.put("origin", "https://" + requestOptions.getRpId());
+            clientData.put("crossOrigin", false);
+            
+            // Check for payment extension (SPC - Secure Payment Confirmation)
+            // Parse extensions from the original JSON since WebAuthn library might not preserve custom extensions
+            try {
+                JsonNode originalJsonNode = jsonMapper.readTree(originalJson);
+                log.info("=== SPC DEBUG: Checking original JSON for extensions ===");
+                log.info("=== SPC DEBUG: Original JSON: {} ===", originalJson);
+                
+                if (originalJsonNode.has("extensions")) {
+                    JsonNode extensionsNode = originalJsonNode.get("extensions");
+                    log.debug("Extensions found in original JSON: {}", extensionsNode.toString());
+                    
+                    if (extensionsNode.has("payment")) {
+                        log.debug("Payment extension found in original JSON");
+                        JsonNode paymentNode = extensionsNode.get("payment");
+                        log.debug("Payment node: {}", paymentNode.toString());
+                        
+                        if (paymentNode.has("isPayment") && paymentNode.get("isPayment").asBoolean()) {
+                            log.info("SPC payment extension detected, adding payment field to clientDataJSON");
+                            
+                            // Create payment object for clientDataJSON
+                            ObjectNode paymentData = jsonMapper.createObjectNode();
+                            
+                            // Copy required fields from extension to clientDataJSON
+                            if (paymentNode.has("rpId")) {
+                                paymentData.put("rp", paymentNode.get("rpId").asText());
+                                log.debug("Added rp field: {}", paymentNode.get("rpId").asText());
+                            }
+                            if (paymentNode.has("topOrigin")) {
+                                paymentData.put("topOrigin", paymentNode.get("topOrigin").asText());
+                                log.debug("Added topOrigin field: {}", paymentNode.get("topOrigin").asText());
+                            }
+                            if (paymentNode.has("payeeName")) {
+                                paymentData.put("payeeName", paymentNode.get("payeeName").asText());
+                                log.debug("Added payeeName field: {}", paymentNode.get("payeeName").asText());
+                            }
+                            if (paymentNode.has("payeeOrigin")) {
+                                paymentData.put("payeeOrigin", paymentNode.get("payeeOrigin").asText());
+                                log.debug("Added payeeOrigin field: {}", paymentNode.get("payeeOrigin").asText());
+                            }
+                            if (paymentNode.has("total")) {
+                                paymentData.set("total", paymentNode.get("total"));
+                                log.debug("Added total field: {}", paymentNode.get("total").toString());
+                            }
+                            if (paymentNode.has("instrument")) {
+                                paymentData.set("instrument", paymentNode.get("instrument"));
+                                log.debug("Added instrument field: {}", paymentNode.get("instrument").toString());
+                            }
+                            if (paymentNode.has("paymentEntitiesLogos")) {
+                                paymentData.set("paymentEntitiesLogos", paymentNode.get("paymentEntitiesLogos"));
+                                log.debug("Added paymentEntitiesLogos field: {}", paymentNode.get("paymentEntitiesLogos").toString());
+                            }
+                            
+                            // Add payment data to clientDataJSON
+                            clientData.set("payment", paymentData);
+                            log.info("Payment data added to clientDataJSON: {}", paymentData.toString());
+                        } else {
+                            log.debug("Payment extension found but isPayment is false or missing");
+                        }
+                    } else {
+                        log.debug("No payment extension found in extensions");
+                    }
+                } else {
+                    log.debug("No extensions found in original JSON");
+                }
+            } catch (Exception extensionEx) {
+                log.warn("Could not process extensions for SPC: {}", extensionEx.getMessage(), extensionEx);
+                // Continue with standard clientDataJSON without payment extension
+            }
+            
+            String clientDataJson = clientData.toString();
+            log.debug("Created client data JSON: {}", clientDataJson);
+            return clientDataJson;
+            
+        } catch (Exception e) {
+            log.warn("Error creating SPC clientDataJSON, falling back to standard format: {}", e.getMessage());
+            // Fallback to the original simple format
+            String clientDataJson = String.format(
+                "{\"type\":\"webauthn.get\",\"challenge\":\"%s\",\"origin\":\"https://%s\"}",
+                requestOptions.getChallenge().getBase64Url(),
+                requestOptions.getRpId()
+            );
+            log.debug("Created fallback client data JSON: {}", clientDataJson);
+            return clientDataJson;
+        }
     }
     
     private byte[] generateSignature(byte[] authenticatorData, String clientDataJson, PrivateKey privateKey) throws Exception {
