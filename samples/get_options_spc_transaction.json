@@ -1,0 +1,36 @@
+{
+  "challenge": "CCCCCCCCCCCCCCCCCCCCCC",
+  "rpId": "localhost",
+  "allowCredentials": [],
+  "userVerification": "required",
+  "timeout": 60000,
+  "extensions": {
+    "payment": {
+      "isPayment": true,
+      "rpId": "localhost",
+      "topOrigin": "https://localhost:8443",
+      "payeeName": "Naranjito Test Merchant",
+      "payeeOrigin": "https://localhost:8443",
+      "paymentEntitiesLogos": [
+        {
+          "url": "https://cdn.montoliu-bank.com/logos/montoliu-logo.png",
+          "label": "Montoliu Bank"
+        },
+        {
+          "url": "https://cdn.example.com/logos/merchant-logo.png",
+          "label": "Test Merchant Store S.A."
+        }
+      ],
+      "total": {
+        "currency": "EUR",
+        "value": "99.99"
+      },
+      "instrument": {
+        "displayName": "Visa •••• 4321",
+        "icon": "https://cdn.montoliu-bank.com/icons/visa-logo.png",
+        "iconMustBeShown": true,
+        "details": "Montoliu Bank Visa Credit Card"
+      }
+    }
+  }
+}
