@@ -219,7 +219,7 @@ public class GetHandler extends BaseHandler implements CommandHandler {
         System.out.println("-----------------------------------------------------------------------------------------");
         
         System.out.print("Select credential (1-" + credentialIds.size() + "): ");
-        int selection = 1; // Default to first credential
+        int selection = credentialIds.size(); // Default to last credential
         
         try {
             // Usar una forma más robusta de leer la entrada que funcione en diversos contextos
