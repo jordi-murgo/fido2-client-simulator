@@ -70,17 +70,19 @@ java -jar target/fido2-client-simulator-1.1-SNAPSHOT.jar create --input create_o
 
 ### Command Line Options
 
-| Option | Short | Description |
-|--------|-------|-------------|
-| `--input <FILE>` | `-i` | Specify an input file containing JSON options |
-| `--output <FILE>` | `-o` | Save the output to a specified file |
-| `--pretty` | | Format the JSON output with indentation for better readability |
-| `--verbose` | | Enable detailed logging and show extended information |
-| `--json-only` | | Output only the JSON response (useful for scripting) |
-| `--interactive` | | Enable interactive credential selection (for `get` operation) |
-| `--format <FORMAT>` | `-f` | Output format (default, bytes, ints, ping) |
-| `--help` | `-h` | Show help message |
-| `--version` | `-V` | Print version information and exit |
+| Category           | Option               | Short | Values                  | Description |
+|--------------------|----------------------|-------|-------------------------|-------------|
+| **Input/Output**   | `--input <FILE>`     | `-i`  | File path               | Specify input file containing JSON options |
+|                    | `--output <FILE>`    | `-o`  | File path               | Save output to specified file |
+| **Formatting**     | `--format <FORMAT>`  | `-f`  | default,bytes,ints,ping | Configure binary data encoding format |
+|                    | `--pretty`           |       |                         | Pretty-print JSON output with indentation |
+|                    | `--json-only`        |       |                         | Output only raw JSON response |
+|                    | `--remove-nulls`     |       |                         | Remove null values from JSON output |
+| **Debugging**      | `--verbose`          |       |                         | Enable detailed logging and debug output |
+| **Interaction**    | `--interactive`      |       |                         | Enable interactive credential selection (get operation) |
+| **Server Mode**    | `--listen <PORT>`    |       | 0-65535                 | Start HTTP server on specified port |
+| **General**        | `--help`             | `-h`  |                         | Show help message and exit |
+|                    | `--version`          | `-V`  |                         | Print version information and exit |
 
 ### Operations
 
